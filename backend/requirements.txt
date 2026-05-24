@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+websockets
+opencv-python
+ultralytics
+mediapipe==0.10.14
+numpy
+pynput
+pygame
+pyobjc-framework-Cocoa ; sys_platform == "darwin"
