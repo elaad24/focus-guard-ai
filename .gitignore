@@ -6,6 +6,7 @@ backend/*.pyc
 backend/.pytest_cache/
 backend/yolov8n.pt
 backend/runs/
+backend/assets/*.wav
 
 # Node
 node_modules/
