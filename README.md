@@ -61,6 +61,47 @@ cd focus-guard-ai/frontend
 npm install
 ```
 
+### Windows
+
+Prerequisites: **Python 3.12**, **Node.js 18+**, PowerShell 5.1+ (or PowerShell 7).
+
+From the project root:
+
+```powershell
+cd focus-guard-ai
+npm run dev
+```
+
+`npm run dev` automatically installs missing root, frontend, and backend dependencies on first run.
+
+Or use the helper script:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev.ps1
+```
+
+This starts:
+- Backend at **http://127.0.0.1:8787**
+- Frontend at **http://127.0.0.1:5700**
+
+If PowerShell blocks scripts, run once:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+(`npm run dev` also passes `-ExecutionPolicy Bypass` for the backend launcher.)
+
+**Windows permissions**
+
+- **Camera** — allow in your browser when prompted (browser camera is the default source).
+- **Keyboard/mouse idle** — `pynput` global listeners may require running the terminal as Administrator on some setups.
+
+**Windows limitations (no platform-specific code yet)**
+
+- Active window shows `unsupported` (macOS AppKit only today).
+- Desktop notifications use macOS `osascript` only; dashboard alerts and sounds still work.
+
 ## Run
 
 You can run backend and frontend together from **one terminal**, or start them separately.
@@ -71,9 +112,10 @@ From the project root:
 
 ```bash
 cd focus-guard-ai
-npm install          # once — installs concurrently at the root
 npm run dev
 ```
+
+On first run, `npm run dev` installs missing root, frontend, and backend dependencies automatically.
 
 Or use the helper script:
 
@@ -83,31 +125,31 @@ bash scripts/dev.sh
 ```
 
 This starts:
-- Backend at **http://127.0.0.1:8000**
-- Frontend at **http://localhost:5173**
+- Backend at **http://127.0.0.1:8787**
+- Frontend at **http://127.0.0.1:5700**
 
 Press `Ctrl+C` once to stop both.
 
 ### Run separately
 
-#### Backend (port 8000)
+#### Backend (port 8787)
 
 ```bash
 cd focus-guard-ai/backend
 source .venv/bin/activate
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
+uvicorn main:app --reload --host 127.0.0.1 --port 8787
 ```
 
-#### Frontend (port 5173)
+#### Frontend (port 5700)
 
 ```bash
 cd focus-guard-ai/frontend
 npm run dev
 ```
 
-Open the dashboard: **http://localhost:5173**
+Open the dashboard: **http://127.0.0.1:5700**
 
-API docs: **http://127.0.0.1:8000/docs**
+API docs: **http://127.0.0.1:8787/docs**
 
 ## macOS Permissions
 
