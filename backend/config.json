@@ -1,0 +1,14 @@
+{
+  "mode": "normal",
+  "softWarningAfterSeconds": 10,
+  "mediumWarningAfterSeconds": 20,
+  "finalAlertAfterSeconds": 30,
+  "phoneUsageLimitSeconds": 90,
+  "keyboardMouseIdleLimitSeconds": 60,
+  "procrastinationScoreThreshold": 70,
+  "cooldownAfterDismissSeconds": 120,
+  "soundEnabled": true,
+  "notificationsEnabled": true,
+  "debugMode": true,
+  "saveRawVideo": false
+}
