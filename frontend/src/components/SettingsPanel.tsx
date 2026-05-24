@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
-import { getSettings, patchSettings } from "../api/settings";
+import { getSettings, patchSettings, resetGazeCalibration } from "../api/settings";
 import { AppSettings } from "../types";
 
-export const SettingsPanel = () => {
+type SettingsPanelProps = {
+  onRecalibrate?: () => void;
+  gazeCalibrated?: boolean;
+};
+
+export const SettingsPanel = ({ onRecalibrate, gazeCalibrated = false }: SettingsPanelProps) => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [recalibrating, setRecalibrating] = useState(false);
 
   useEffect(() => {
     getSettings()
@@ -37,6 +43,20 @@ export const SettingsPanel = () => {
     }
   };
 
+  const handleRecalibrate = async () => {
+    setRecalibrating(true);
+    setMessage("");
+    try {
+      await resetGazeCalibration();
+      setMessage("Calibration reset. Complete the setup wizard to recalibrate.");
+      onRecalibrate?.();
+    } catch {
+      setMessage("Failed to reset calibration.");
+    } finally {
+      setRecalibrating(false);
+    }
+  };
+
   if (!settings) {
     return (
       <section className="panel span-6" data-test-id="settings-panel">
@@ -49,6 +69,23 @@ export const SettingsPanel = () => {
   return (
     <section className="panel span-6" data-test-id="settings-panel">
       <h2 className="panel-title">Settings</h2>
+      <div className="settings-workstation-section">
+        <h3 className="settings-section-title">Workstation setup</h3>
+        <p className="event-meta">
+          {gazeCalibrated
+            ? "Gaze calibration is active for your desk layout."
+            : "Gaze calibration is not complete — run setup to improve accuracy."}
+        </p>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={handleRecalibrate}
+          disabled={recalibrating}
+          data-test-id="recalibrate-gaze-button"
+        >
+          {recalibrating ? "Resetting..." : "Recalibrate workstation"}
+        </button>
+      </div>
       <div className="settings-grid">
         <div className="field">
           <label htmlFor="softWarningAfterSeconds">Soft warning (seconds)</label>
@@ -105,6 +142,17 @@ export const SettingsPanel = () => {
             value={settings.procrastinationScoreThreshold}
             onChange={(event) =>
               handleChange("procrastinationScoreThreshold", Number(event.target.value))
+            }
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="inputActivityFocusWindowSeconds">Input activity focus window (seconds)</label>
+          <input
+            id="inputActivityFocusWindowSeconds"
+            type="number"
+            value={settings.inputActivityFocusWindowSeconds ?? 10}
+            onChange={(event) =>
+              handleChange("inputActivityFocusWindowSeconds", Number(event.target.value))
             }
           />
         </div>

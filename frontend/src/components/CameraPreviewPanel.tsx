@@ -1,14 +1,33 @@
+import { useEffect } from "react";
 import { useBrowserCamera } from "../hooks/useBrowserCamera";
+import { FocusMode } from "../types";
 
 type CameraPreviewPanelProps = {
   cameraOk: boolean;
+  mode: FocusMode;
+  onControlsReady?: (controls: {
+    sendFrameNow: () => void;
+    enableCamera: () => void;
+    isStreaming: boolean;
+  }) => void;
 };
 
-export const CameraPreviewPanel = ({ cameraOk }: CameraPreviewPanelProps) => {
-  const { videoRef, canvasRef, status, errorMessage, framesSent, handleEnableCamera } =
-    useBrowserCamera();
+export const CameraPreviewPanel = ({ cameraOk, mode, onControlsReady }: CameraPreviewPanelProps) => {
+  const { videoRef, canvasRef, status, errorMessage, framesSent, handleEnableCamera, sendFrameNow } =
+    useBrowserCamera({ mode });
 
   const isStreaming = status === "streaming";
+  const uploadsPaused = mode === "break";
+
+  useEffect(() => {
+    onControlsReady?.({
+      sendFrameNow: () => {
+        void sendFrameNow();
+      },
+      enableCamera: handleEnableCamera,
+      isStreaming,
+    });
+  }, [onControlsReady, sendFrameNow, handleEnableCamera, isStreaming]);
 
   return (
     <section className="panel span-6" data-test-id="camera-preview-panel">
@@ -21,6 +40,12 @@ export const CameraPreviewPanel = ({ cameraOk }: CameraPreviewPanelProps) => {
         Privacy: camera frames are processed in memory only and are never saved to disk, cloud, or
         browser storage.
       </p>
+
+      {uploadsPaused ? (
+        <p className="event-meta" data-test-id="break-camera-paused">
+          Break mode: frame uploads and detection are paused to save resources.
+        </p>
+      ) : null}
 
       {status === "idle" || status === "denied" || status === "error" ? (
         <button
@@ -36,28 +61,35 @@ export const CameraPreviewPanel = ({ cameraOk }: CameraPreviewPanelProps) => {
       {status === "requesting" ? <p className="event-meta">Requesting camera access...</p> : null}
       {errorMessage ? <p className="event-meta">{errorMessage}</p> : null}
 
-      <video
-        ref={videoRef}
-        className="camera-preview-image"
-        autoPlay
-        playsInline
-        muted
-        data-test-id="camera-preview-video"
-        style={{ display: isStreaming ? "block" : "none" }}
-      />
+      <div className="camera-preview-wrapper">
+        <video
+          ref={videoRef}
+          className="camera-preview-image"
+          autoPlay
+          playsInline
+          muted
+          data-test-id="camera-preview-video"
+          style={{ display: isStreaming ? "block" : "none" }}
+        />
+        {isStreaming ? (
+          <div className="camera-detection-frame" aria-hidden="true" data-test-id="detection-frame-overlay">
+            <span className="camera-detection-frame-label">Detection zone</span>
+          </div>
+        ) : null}
+      </div>
       <canvas ref={canvasRef} hidden aria-hidden="true" />
 
       {!isStreaming && status !== "requesting" ? (
         <p className="event-meta">
-          Click Enable Camera to allow Chrome access. You can revoke it anytime in Chrome site
-          settings.
+          Click Enable Camera to allow Chrome access. Position your desk and phone inside the
+          detection frame guide.
         </p>
       ) : null}
 
       <div className="metric-grid" style={{ marginTop: 12 }}>
         <div className="metric-card">
           <span className="metric-label">Upload Interval</span>
-          <span className="metric-value">5s</span>
+          <span className="metric-value">{uploadsPaused ? "paused" : "5s"}</span>
         </div>
         <div className="metric-card">
           <span className="metric-label">Camera Status</span>

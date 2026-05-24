@@ -16,8 +16,8 @@ from api.routes import bind_runtime, router
 from api.websocket import start_broadcaster, stop_broadcaster, websocket_status_handler
 from detection.camera import CameraCapture
 from detection.face_tracker import FaceTracker
+from detection.gaze_calibration import gaze_calibration_store
 from detection.hand_tracker import HandTracker
-from detection.screen_zone import screen_zone_store
 from detection.yolo_detector import YoloDetector
 from logic.config_store import config_store
 from logic.mode_rules import apply_mode_to_signals
@@ -36,7 +36,9 @@ state_machine = StateMachine(
     sound_alert=sound_alert,
     notification_alert=notification_alert,
     get_idle_seconds=kb_mouse.seconds_since_last_input,
-    get_recent_activity=lambda: kb_mouse.had_recent_activity(within_seconds=5.0),
+    get_recent_activity=lambda: kb_mouse.had_recent_activity(
+        within_seconds=float(config_store.get().get("inputActivityFocusWindowSeconds", 10)),
+    ),
 )
 
 _detection_running = False
@@ -46,17 +48,33 @@ _detection_thread: threading.Thread | None = None
 def _detection_loop() -> None:
     global _detection_running
     while _detection_running:
-        frame = camera.get_frame()
         config = config_store.get()
         mode = config.get("mode", "normal")
-        screen_zone = screen_zone_store.get()
+
+        if mode == "break":
+            def mutate_break(ws) -> None:
+                ws.mode = mode
+                ws.signals = DetectionSignals(break_mode_active=True)
+                ws.fps = 0.0
+                ws.camera_ok = False
+                ws.model_ok = yolo.ok
+                ws.kb_mouse_ok = kb_mouse.ok
+                ws.alert_system_ok = sound_alert.ok
+                ws.active_window = active_window.get()
+
+            world_state.mutate(mutate_break)
+            time.sleep(0.5)
+            continue
+
+        frame = camera.get_frame()
+        gaze_calibration = gaze_calibration_store.get()
 
         if frame is None:
             time.sleep(0.1)
             continue
 
         yolo_result = yolo.detect(frame)
-        face_result = face_tracker.analyze(frame, screen_zone)
+        face_result = face_tracker.analyze(frame, gaze_calibration)
         hand_result = hand_tracker.analyze(frame)
 
         phone_near_hand = yolo.phone_near_hand_or_face(
@@ -75,8 +93,9 @@ def _detection_loop() -> None:
             keyboard_mouse_idle=False,
             body_hand_idle=hand_result.body_hand_idle,
             tablet_detected=yolo_result["tablet_detected"],
+            tablet_near_person=yolo_result.get("tablet_near_person", False),
             tablet_mode_active=mode == "ipad",
-            break_mode_active=mode == "break",
+            break_mode_active=False,
             video_lesson_mode_active=mode == "video_lesson",
         )
 
@@ -89,6 +108,10 @@ def _detection_loop() -> None:
             ws.kb_mouse_ok = kb_mouse.ok
             ws.alert_system_ok = sound_alert.ok
             ws.active_window = active_window.get()
+            ws.gaze_pitch = face_result.gaze_pitch
+            ws.gaze_yaw = face_result.gaze_yaw
+            ws.gaze_calibrated = gaze_calibration.is_calibrated
+            ws.workstation_profile = gaze_calibration.workstation_profile
 
         world_state.mutate(mutate)
         time.sleep(1.0 / 15.0)
@@ -100,6 +123,9 @@ async def lifespan(_app: FastAPI):
 
     def mutate(ws) -> None:
         ws.mode = config_store.get().get("mode", "normal")
+        cal = gaze_calibration_store.get()
+        ws.gaze_calibrated = cal.is_calibrated
+        ws.workstation_profile = cal.workstation_profile
         ws.add_event("app_started", "Focus Guard AI started")
         if camera.source == "browser":
             ws.add_event("camera_browser_mode", "Waiting for browser camera feed")
@@ -137,7 +163,12 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Focus Guard AI", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5700",
+        "http://127.0.0.1:5700",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

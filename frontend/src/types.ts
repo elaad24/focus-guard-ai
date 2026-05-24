@@ -19,6 +19,7 @@ export type DetectionSignals = {
   keyboard_mouse_idle: boolean;
   body_hand_idle: boolean;
   tablet_detected: boolean;
+  tablet_near_person: boolean;
   tablet_mode_active: boolean;
   break_mode_active: boolean;
   video_lesson_mode_active: boolean;
@@ -51,6 +52,7 @@ export type StatusSnapshot = {
   focus_score: number;
   distraction_score: number;
   distraction_contributors: Array<string>;
+  focus_contributors: Array<string>;
   signals: DetectionSignals;
   keyboard_mouse_idle_seconds: number;
   time_above_threshold_seconds: number;
@@ -65,6 +67,23 @@ export type StatusSnapshot = {
   active_window: { app_name: string; bundle_id: string };
   session_summary: SessionSummary;
   events: Array<StatusEvent>;
+  gaze_pitch: number;
+  gaze_yaw: number;
+  gaze_calibrated: boolean;
+  workstation_profile: WorkstationProfile | null;
+  recent_input_activity: boolean;
+  input_activity_override_active: boolean;
+};
+
+export type WorkstationProfile = "laptop_below" | "screens_in_front" | "side_monitors";
+
+export type GazeCalibration = {
+  calibrated: boolean;
+  workstationProfile: WorkstationProfile | null;
+  baselinePitch: number | null;
+  baselineYaw: number | null;
+  calibratedAt: number | null;
+  focusZone: { x1: number; y1: number; x2: number; y2: number } | null;
 };
 
 export type AppSettings = {
@@ -76,6 +95,7 @@ export type AppSettings = {
   keyboardMouseIdleLimitSeconds: number;
   procrastinationScoreThreshold: number;
   cooldownAfterDismissSeconds: number;
+  inputActivityFocusWindowSeconds: number;
   soundEnabled: boolean;
   notificationsEnabled: boolean;
   debugMode: boolean;
@@ -91,6 +111,8 @@ export type HealthResponse = {
   alert_system: string;
   fps: number;
   mode: string;
+  backend_cpu_percent?: number | null;
+  backend_memory_mb?: number | null;
 };
 
 const backendPort = import.meta.env.VITE_FOCUS_GUARD_PORT ?? "8787";
@@ -111,6 +133,7 @@ export const DEFAULT_STATUS: StatusSnapshot = {
   focus_score: 85,
   distraction_score: 0,
   distraction_contributors: [],
+  focus_contributors: [],
   signals: {
     person_detected: false,
     phone_detected: false,
@@ -121,6 +144,7 @@ export const DEFAULT_STATUS: StatusSnapshot = {
     keyboard_mouse_idle: false,
     body_hand_idle: false,
     tablet_detected: false,
+    tablet_near_person: false,
     tablet_mode_active: false,
     break_mode_active: false,
     video_lesson_mode_active: false,
@@ -151,4 +175,10 @@ export const DEFAULT_STATUS: StatusSnapshot = {
     most_common_trigger: "none",
   },
   events: [],
+  gaze_pitch: 0,
+  gaze_yaw: 0,
+  gaze_calibrated: false,
+  workstation_profile: null,
+  recent_input_activity: false,
+  input_activity_override_active: false,
 };

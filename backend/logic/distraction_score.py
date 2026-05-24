@@ -5,6 +5,13 @@ from typing import Any
 
 from logic.world_state import DetectionSignals
 
+
+@dataclass
+class ScoreResult:
+    distraction_score: int
+    contributors: list[str]
+
+
 PHONE_NEAR_PERSON = 40
 PHONE_NEAR_HAND_OR_FACE = 30
 HEAD_DOWN = 20
@@ -13,11 +20,12 @@ KB_MOUSE_IDLE_OVER_LIMIT = 20
 BODY_HAND_IDLE_OVER_LIMIT = 10
 TABLET_REDUCTION_IF_IPAD_MODE = -25
 
-
-@dataclass
-class ScoreResult:
-    distraction_score: int
-    contributors: list[str]
+GAZE_IDLE_CONTRIBUTORS = frozenset({
+    "head_looking_down",
+    "looking_away_from_screen",
+    "keyboard_mouse_idle",
+    "body_hand_idle",
+})
 
 
 def calculate_distraction_score(
@@ -25,6 +33,7 @@ def calculate_distraction_score(
     mode: str,
     config: dict[str, Any],
     phone_near_seconds: float = 0.0,
+    recent_input_activity: bool = False,
 ) -> ScoreResult:
     if not signals.person_detected:
         return ScoreResult(distraction_score=0, contributors=["no_person_detected"])
@@ -47,22 +56,21 @@ def calculate_distraction_score(
         score += PHONE_NEAR_HAND_OR_FACE * weights["phone_near_hand_or_face"]
         contributors.append("phone_near_hand_or_face")
 
-    if signals.head_looking_down:
+    if signals.head_looking_down and not (recent_input_activity and mode != "video_lesson"):
         if not (mode == "ipad" and signals.tablet_detected):
             score += HEAD_DOWN * weights["head_down"]
             contributors.append("head_looking_down")
 
-    if signals.looking_away_from_screen:
+    if signals.looking_away_from_screen and not recent_input_activity:
         if mode != "video_lesson":
             score += LOOKING_AWAY * weights["looking_away"]
             contributors.append("looking_away_from_screen")
 
-    idle_limit = float(config.get("keyboardMouseIdleLimitSeconds", 60))
-    if signals.keyboard_mouse_idle:
+    if signals.keyboard_mouse_idle and not recent_input_activity:
         score += KB_MOUSE_IDLE_OVER_LIMIT * weights["kb_idle"]
         contributors.append("keyboard_mouse_idle")
 
-    if signals.body_hand_idle and signals.keyboard_mouse_idle:
+    if signals.body_hand_idle and signals.keyboard_mouse_idle and not recent_input_activity:
         score += BODY_HAND_IDLE_OVER_LIMIT * weights["body_idle"]
         contributors.append("body_hand_idle")
 

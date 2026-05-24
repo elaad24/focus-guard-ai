@@ -1,4 +1,4 @@
-import { API_BASE, AppSettings, FocusMode, HealthResponse, SessionSummary } from "../types";
+import { API_BASE, AppSettings, FocusMode, GazeCalibration, HealthResponse, SessionSummary, StatusSnapshot, WorkstationProfile } from "../types";
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -41,6 +41,27 @@ export const getSessionSummary = () => request<SessionSummary>("/session-summary
 
 export const resetSession = () =>
   request<SessionSummary>("/session/reset", {
+    method: "POST",
+  });
+
+export const getState = () => request<StatusSnapshot>("/state");
+
+export const getGazeCalibration = () => request<GazeCalibration>("/calibration/gaze");
+
+export const setGazeProfile = (workstationProfile: WorkstationProfile) =>
+  request<GazeCalibration>("/calibration/gaze/profile", {
+    method: "POST",
+    body: JSON.stringify({ workstationProfile }),
+  });
+
+export const setGazePose = (samples: Array<{ pitch: number; yaw: number }>) =>
+  request<GazeCalibration>("/calibration/gaze/pose", {
+    method: "POST",
+    body: JSON.stringify({ samples }),
+  });
+
+export const resetGazeCalibration = () =>
+  request<GazeCalibration>("/calibration/gaze/reset", {
     method: "POST",
   });
 

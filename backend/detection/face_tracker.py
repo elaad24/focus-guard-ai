@@ -7,12 +7,16 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
+from detection.gaze_calibration import GazeCalibration
+
 
 @dataclass
 class FaceAnalysis:
     head_looking_down: bool = False
     looking_away_from_screen: bool = False
     face_bbox: tuple[float, float, float, float] | None = None
+    gaze_pitch: float = 0.0
+    gaze_yaw: float = 0.0
 
 
 class FaceTracker:
@@ -33,13 +37,13 @@ class FaceTracker:
         self._yaw_ema = 0.0
         self._alpha = 0.35
 
-    def analyze(self, frame: np.ndarray, screen_zone: tuple[float, float, float, float] | None) -> FaceAnalysis:
+    def analyze(self, frame: np.ndarray, calibration: GazeCalibration | None = None) -> FaceAnalysis:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self._face_mesh.process(rgb)
         if not results.multi_face_landmarks:
             self._pitch_ema *= 0.8
             self._yaw_ema *= 0.8
-            return FaceAnalysis()
+            return FaceAnalysis(gaze_pitch=self._pitch_ema, gaze_yaw=self._yaw_ema)
 
         landmarks = results.multi_face_landmarks[0].landmark
         h, w = frame.shape[:2]
@@ -67,18 +71,59 @@ class FaceTracker:
         head_down = self._pitch_ema > 18
         looking_away = abs(self._yaw_ema) > 45
 
-        if screen_zone is not None:
-            sx1, sy1, sx2, sy2 = screen_zone
-            face_cx = (face_bbox[0] + face_bbox[2]) / 2
-            face_cy = (face_bbox[1] + face_bbox[3]) / 2
-            in_zone = sx1 <= face_cx <= sx2 and sy1 <= face_cy <= sy2
-            looking_away = looking_away or not in_zone
+        if calibration is not None and calibration.is_calibrated:
+            head_down, looking_away = self._evaluate_with_calibration(
+                calibration,
+                face_bbox,
+                w,
+                h,
+            )
 
         return FaceAnalysis(
             head_looking_down=head_down,
             looking_away_from_screen=looking_away,
             face_bbox=face_bbox,
+            gaze_pitch=round(self._pitch_ema, 2),
+            gaze_yaw=round(self._yaw_ema, 2),
         )
+
+    def _evaluate_with_calibration(
+        self,
+        calibration: GazeCalibration,
+        face_bbox: tuple[float, float, float, float],
+        frame_w: int,
+        frame_h: int,
+    ) -> tuple[bool, bool]:
+        tolerances = calibration.tolerances()
+        baseline_pitch = calibration.baseline_pitch or 0.0
+        baseline_yaw = calibration.baseline_yaw or 0.0
+
+        pitch_delta = self._pitch_ema - baseline_pitch
+        yaw_delta = self._yaw_ema - baseline_yaw
+
+        profile = calibration.workstation_profile or "screens_in_front"
+
+        if profile == "laptop_below":
+            head_down = pitch_delta > tolerances.pitch_down_threshold
+        else:
+            head_down = (
+                pitch_delta > tolerances.pitch_down_threshold
+                or pitch_delta < -tolerances.pitch_up_threshold
+            )
+
+        looking_away = abs(yaw_delta) > tolerances.yaw_away_threshold
+
+        if calibration.focus_zone is not None:
+            sx1, sy1, sx2, sy2 = calibration.focus_zone
+            face_cx = ((face_bbox[0] + face_bbox[2]) / 2) / frame_w
+            face_cy = ((face_bbox[1] + face_bbox[3]) / 2) / frame_h
+            in_zone = sx1 <= face_cx <= sx2 and sy1 <= face_cy <= sy2
+            if profile == "screens_in_front" and in_zone:
+                looking_away = False
+            elif not in_zone:
+                looking_away = True
+
+        return head_down, looking_away
 
     def health(self) -> dict[str, Any]:
         return {"face_tracker_ok": True}

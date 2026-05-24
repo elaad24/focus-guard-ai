@@ -7,10 +7,11 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from detection.screen_zone import screen_zone_store
+from detection.gaze_calibration import gaze_calibration_store
 from logic.config_store import config_store
 from logic.mode_rules import validate_mode
 from logic.world_state import world_state
+from system.metrics import get_backend_resources
 
 router = APIRouter()
 
@@ -41,6 +42,19 @@ class ScreenZoneRequest(BaseModel):
     y2: float
 
 
+class GazeProfileRequest(BaseModel):
+    workstationProfile: str
+
+
+class GazePoseSample(BaseModel):
+    pitch: float
+    yaw: float
+
+
+class GazePoseRequest(BaseModel):
+    samples: list[GazePoseSample] = Field(min_length=1)
+
+
 class SettingsUpdate(BaseModel):
     mode: str | None = None
     softWarningAfterSeconds: int | None = Field(default=None, ge=5, le=600)
@@ -50,6 +64,7 @@ class SettingsUpdate(BaseModel):
     keyboardMouseIdleLimitSeconds: int | None = Field(default=None, ge=5, le=600)
     procrastinationScoreThreshold: int | None = Field(default=None, ge=0, le=100)
     cooldownAfterDismissSeconds: int | None = Field(default=None, ge=0, le=3600)
+    inputActivityFocusWindowSeconds: int | None = Field(default=None, ge=1, le=120)
     soundEnabled: bool | None = None
     notificationsEnabled: bool | None = None
     debugMode: bool | None = None
@@ -62,6 +77,10 @@ async def ingest_camera_frame(request: Request) -> dict[str, bool]:
         raise HTTPException(status_code=503, detail="Camera runtime not initialized")
     if _camera.source != "browser":
         raise HTTPException(status_code=409, detail="Backend is not configured for browser camera frames")
+
+    config = config_store.get()
+    if config.get("mode") == "break":
+        return {"accepted": False, "skipped": True}
 
     jpeg_bytes = await request.body()
     if not _camera.submit_browser_frame(jpeg_bytes):
@@ -89,6 +108,7 @@ def camera_frame() -> Response:
 @router.get("/health")
 def health() -> dict[str, Any]:
     snapshot = world_state.snapshot()
+    resources = get_backend_resources()
     return {
         "backend": "ok",
         "camera": "ok" if snapshot.get("camera_ok") else "error",
@@ -98,6 +118,7 @@ def health() -> dict[str, Any]:
         "alert_system": "ok" if snapshot.get("alert_system_ok") else "error",
         "fps": snapshot.get("fps", 0),
         "mode": snapshot.get("mode", "normal"),
+        **resources,
     }
 
 
@@ -161,8 +182,62 @@ def reset_session() -> dict[str, Any]:
     return world_state.snapshot()["session_summary"]
 
 
+@router.get("/calibration/gaze")
+def get_gaze_calibration() -> dict[str, Any]:
+    return gaze_calibration_store.get().to_dict()
+
+
+@router.post("/calibration/gaze/profile")
+def set_gaze_profile(payload: GazeProfileRequest) -> dict[str, Any]:
+    try:
+        result = gaze_calibration_store.set_profile(payload.workstationProfile)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    def mutate(ws) -> None:
+        ws.gaze_calibrated = gaze_calibration_store.get().is_calibrated
+        ws.workstation_profile = payload.workstationProfile
+        ws.add_event("gaze_profile_set", f"Workstation profile set to {payload.workstationProfile}")
+
+    world_state.mutate(mutate)
+    return result
+
+
+@router.post("/calibration/gaze/pose")
+def set_gaze_pose(payload: GazePoseRequest) -> dict[str, Any]:
+    try:
+        samples = [s.model_dump() for s in payload.samples]
+        result = gaze_calibration_store.set_pose_baseline(samples)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    def mutate(ws) -> None:
+        cal = gaze_calibration_store.get()
+        ws.gaze_calibrated = cal.is_calibrated
+        ws.workstation_profile = cal.workstation_profile
+        ws.add_event("gaze_calibrated", "Workstation gaze calibration completed")
+
+    world_state.mutate(mutate)
+    return result
+
+
+@router.post("/calibration/gaze/reset")
+def reset_gaze_calibration() -> dict[str, Any]:
+    result = gaze_calibration_store.reset()
+
+    def mutate(ws) -> None:
+        ws.gaze_calibrated = False
+        ws.workstation_profile = None
+        ws.add_event("gaze_calibration_reset", "Gaze calibration reset")
+
+    world_state.mutate(mutate)
+    return result
+
+
 @router.post("/calibration/screen-zone")
 def calibrate_screen_zone(payload: ScreenZoneRequest) -> dict[str, Any]:
+    from detection.screen_zone import screen_zone_store
+
     zone = screen_zone_store.set(payload.x1, payload.y1, payload.x2, payload.y2)
 
     def mutate(ws) -> None:

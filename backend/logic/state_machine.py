@@ -7,13 +7,25 @@ from typing import Callable
 from alerts.notification_alert import NotificationAlert
 from alerts.sound_alert import SoundAlert
 from logic.config_store import config_store
-from logic.distraction_score import calculate_distraction_score
+from logic.distraction_score import GAZE_IDLE_CONTRIBUTORS, calculate_distraction_score
 from logic.focus_score import calculate_focus_score
 from logic.mode_rules import alerts_enabled, apply_mode_to_signals
 from logic.session_tracker import SessionTracker
 from logic.world_state import DetectionSignals, FocusState, WorldState, world_state
 
 DISTRACTION_RESET_SECONDS = 12.0
+THRESHOLD_HYSTERESIS = 10
+PERSON_STALE_SECONDS = 8.0
+
+MEANINGFUL_CONTRIBUTORS = frozenset({
+    "phone_near_person",
+    "phone_near_hand_or_face",
+    "phone_usage_over_limit",
+    "head_looking_down",
+    "looking_away_from_screen",
+    "keyboard_mouse_idle",
+    "body_hand_idle",
+})
 
 
 class StateMachine:
@@ -96,39 +108,95 @@ class StateMachine:
                 idle_limit = float(config.get("keyboardMouseIdleLimitSeconds", 60))
                 ws.signals.keyboard_mouse_idle = idle_seconds >= idle_limit
 
+                if ws.signals.person_detected:
+                    ws.last_person_detected_at = now
+
                 if ws.signals.phone_near_person:
                     if ws.phone_near_since is None:
                         ws.phone_near_since = now
                 else:
                     ws.phone_near_since = None
 
+                ws.recent_input_activity = recent_activity
+                ws.input_activity_override_active = (
+                    recent_activity and not self._is_instant_unfocused(ws)
+                )
+
                 score_result = calculate_distraction_score(
                     ws.signals,
                     ws.mode,
                     config,
                     phone_near_seconds=max(0.0, now - ws.phone_near_since) if ws.phone_near_since else 0.0,
+                    recent_input_activity=recent_activity,
                 )
-                ws.distraction_score = score_result.distraction_score
-                ws.distraction_contributors = score_result.contributors
+
+                distraction_score = score_result.distraction_score
+                contributors = score_result.contributors
+
+                if (
+                    not ws.signals.person_detected
+                    and "no_person_detected" in contributors
+                    and ws.last_person_detected_at is not None
+                    and (now - ws.last_person_detected_at) <= PERSON_STALE_SECONDS
+                    and ws.last_distraction_score > 0
+                ):
+                    distraction_score = ws.last_distraction_score
+                    contributors = [
+                        c for c in ws.last_distraction_contributors if c != "no_person_detected"
+                    ] or contributors
+
+                ws.distraction_score = distraction_score
+                ws.distraction_contributors = contributors
+                if distraction_score > 0 or ws.signals.person_detected:
+                    ws.last_distraction_score = distraction_score
+                    ws.last_distraction_contributors = list(contributors)
 
                 hands_moving = not ws.signals.body_hand_idle
-                ws.focus_score = calculate_focus_score(
+                focus_result = calculate_focus_score(
                     ws.distraction_score,
                     ws.state,
                     ws.signals,
                     recent_activity,
                     hands_moving,
                 )
+                ws.focus_score = focus_result.focus_score
+                ws.focus_contributors = focus_result.contributors
 
                 self._session_tracker.tick(ws, config)
-                self._update_state(ws, config)
+                self._update_state(ws, config, now, recent_activity)
 
             world_state.mutate(mutate)
             time.sleep(self.TICK_SECONDS)
 
-    def _update_state(self, ws: WorldState, config: dict) -> None:
-        now = time.monotonic()
+    def _has_meaningful_contributors(
+        self,
+        contributors: list[str],
+        recent_input_activity: bool = False,
+    ) -> bool:
+        if recent_input_activity:
+            return any(
+                c in MEANINGFUL_CONTRIBUTORS and c not in GAZE_IDLE_CONTRIBUTORS
+                for c in contributors
+            )
+        return any(c in MEANINGFUL_CONTRIBUTORS for c in contributors)
+
+    def _is_instant_unfocused(self, ws: WorldState) -> bool:
+        signals = ws.signals
+        if signals.phone_near_person or signals.phone_near_hand_or_face:
+            return True
+        if signals.tablet_near_person and ws.mode != "ipad":
+            return True
+        return False
+
+    def _update_state(
+        self,
+        ws: WorldState,
+        config: dict,
+        now: float,
+        recent_input_activity: bool = False,
+    ) -> None:
         threshold = float(config.get("procrastinationScoreThreshold", 70))
+        exit_threshold = max(0.0, threshold - THRESHOLD_HYSTERESIS)
         soft_after = float(config.get("softWarningAfterSeconds", 45))
         medium_after = float(config.get("mediumWarningAfterSeconds", 60))
         final_after = float(config.get("finalAlertAfterSeconds", 90))
@@ -159,25 +227,58 @@ class StateMachine:
                 self._sound_alert.start_final_loop()
             return
 
-        above_threshold = ws.distraction_score >= threshold
+        instant_unfocused = self._is_instant_unfocused(ws)
 
-        if above_threshold:
+        if recent_input_activity and not instant_unfocused:
+            if ws.state not in {FocusState.ALERT_ACTIVE, FocusState.DISMISSED_COOLDOWN}:
+                ws.state = FocusState.FOCUSED
+                ws.warning_stage = "none"
+                ws.above_threshold_since = None
+                ws.time_above_threshold_seconds = 0.0
+                ws.below_threshold_since = None
+                self._soft_alert_sent = False
+                self._medium_beep_sent = False
+            return
+
+        above_threshold = ws.distraction_score >= threshold or instant_unfocused
+        has_active_contributors = self._has_meaningful_contributors(
+            ws.distraction_contributors,
+            recent_input_activity,
+        )
+
+        if above_threshold or (has_active_contributors and ws.above_threshold_since is not None):
             ws.below_threshold_since = None
             if ws.above_threshold_since is None:
                 ws.above_threshold_since = now
             ws.time_above_threshold_seconds = now - ws.above_threshold_since
         else:
-            ws.above_threshold_since = None
-            ws.time_above_threshold_seconds = 0.0
-            ws.below_threshold_since = ws.below_threshold_since or now
-            reset_after = DISTRACTION_RESET_SECONDS if ws.warning_stage in {"soft", "medium", "building"} else 2.0
-            if now - ws.below_threshold_since >= reset_after:
-                if ws.state not in {FocusState.ALERT_ACTIVE, FocusState.DISMISSED_COOLDOWN}:
-                    ws.state = FocusState.FOCUSED
-                    ws.warning_stage = "none"
-                    self._soft_alert_sent = False
-                    self._medium_beep_sent = False
-            return
+            below_exit = ws.distraction_score < exit_threshold and not has_active_contributors
+            if below_exit:
+                ws.below_threshold_since = ws.below_threshold_since or now
+                if now - ws.below_threshold_since >= DISTRACTION_RESET_SECONDS:
+                    if ws.state not in {FocusState.ALERT_ACTIVE, FocusState.DISMISSED_COOLDOWN}:
+                        ws.state = FocusState.FOCUSED
+                        ws.warning_stage = "none"
+                        ws.above_threshold_since = None
+                        ws.time_above_threshold_seconds = 0.0
+                        self._soft_alert_sent = False
+                        self._medium_beep_sent = False
+            else:
+                ws.below_threshold_since = None
+                if ws.above_threshold_since is not None:
+                    ws.time_above_threshold_seconds = now - ws.above_threshold_since
+            if ws.distraction_score < exit_threshold and not has_active_contributors:
+                return
+
+        if instant_unfocused and ws.state not in {
+            FocusState.ALERT_ACTIVE,
+            FocusState.DISMISSED_COOLDOWN,
+            FocusState.DISTRACTION_WARNING_SOFT,
+            FocusState.DISTRACTION_WARNING_MEDIUM,
+            FocusState.ALERT_ACTIVE,
+        }:
+            ws.state = FocusState.DISTRACTED
+            ws.warning_stage = "building"
 
         if ws.time_above_threshold_seconds >= final_after:
             if ws.state != FocusState.ALERT_ACTIVE:
@@ -225,5 +326,10 @@ class StateMachine:
             ws.warning_stage = "soft"
             return
 
-        ws.state = FocusState.DISTRACTED
-        ws.warning_stage = "building"
+        if ws.state not in {
+            FocusState.DISTRACTION_WARNING_SOFT,
+            FocusState.DISTRACTION_WARNING_MEDIUM,
+            FocusState.ALERT_ACTIVE,
+        }:
+            ws.state = FocusState.DISTRACTED
+            ws.warning_stage = "building"

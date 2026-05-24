@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { submitCameraFrame } from "../api/settings";
+import { FocusMode } from "../types";
 
 export type BrowserCameraStatus =
   | "idle"
@@ -11,28 +12,42 @@ export type BrowserCameraStatus =
 const FRAME_UPLOAD_INTERVAL_MS = 5000;
 const JPEG_QUALITY = 0.72;
 
-export const useBrowserCamera = () => {
+type UseBrowserCameraOptions = {
+  mode: FocusMode;
+};
+
+export const useBrowserCamera = ({ mode }: UseBrowserCameraOptions) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameTimerRef = useRef<number | null>(null);
+  const wasStreamingRef = useRef(false);
   const [status, setStatus] = useState<BrowserCameraStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [framesSent, setFramesSent] = useState(0);
 
-  const stopStream = useCallback(() => {
+  const clearUploadTimer = useCallback(() => {
     if (frameTimerRef.current !== null) {
       window.clearInterval(frameTimerRef.current);
       frameTimerRef.current = null;
     }
+  }, []);
+
+  const stopStream = useCallback(() => {
+    clearUploadTimer();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-  }, []);
+    wasStreamingRef.current = false;
+  }, [clearUploadTimer]);
 
   const captureAndSendFrame = useCallback(async () => {
+    if (mode === "break") {
+      return;
+    }
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
@@ -67,44 +82,84 @@ export const useBrowserCamera = () => {
     } catch {
       // Keep streaming locally even if one upload fails.
     }
-  }, []);
+  }, [mode]);
+
+  const startUploadTimer = useCallback(() => {
+    clearUploadTimer();
+    void captureAndSendFrame();
+    frameTimerRef.current = window.setInterval(() => {
+      void captureAndSendFrame();
+    }, FRAME_UPLOAD_INTERVAL_MS);
+  }, [captureAndSendFrame, clearUploadTimer]);
 
   const handleEnableCamera = useCallback(async () => {
     setErrorMessage("");
     setStatus("requesting");
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+    const constraintSets: Array<MediaStreamConstraints> = [
+      {
         video: {
           facingMode: "user",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
         },
         audio: false,
-      });
+      },
+      {
+        video: { facingMode: "user" },
+        audio: false,
+      },
+    ];
 
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+    let lastError: unknown = null;
 
-      setStatus("streaming");
-      void captureAndSendFrame();
-      frameTimerRef.current = window.setInterval(() => {
-        void captureAndSendFrame();
-      }, FRAME_UPLOAD_INTERVAL_MS);
-    } catch (error) {
-      stopStream();
-      if (error instanceof DOMException && error.name === "NotAllowedError") {
-        setStatus("denied");
-        setErrorMessage("Camera permission was denied in the browser.");
+    for (let index = 0; index < constraintSets.length; index += 1) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraintSets[index]);
+
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        setStatus("streaming");
+        wasStreamingRef.current = true;
+        if (mode !== "break") {
+          startUploadTimer();
+        }
         return;
+      } catch (error) {
+        lastError = error;
       }
-      setStatus("error");
-      setErrorMessage(error instanceof Error ? error.message : "Failed to open camera");
     }
-  }, [captureAndSendFrame, stopStream]);
+
+    stopStream();
+    if (lastError instanceof DOMException && lastError.name === "NotAllowedError") {
+      setStatus("denied");
+      setErrorMessage("Camera permission was denied in the browser.");
+      return;
+    }
+    setStatus("error");
+    setErrorMessage(
+      lastError instanceof Error ? lastError.message : "Failed to open camera",
+    );
+  }, [mode, startUploadTimer, stopStream]);
+
+  useEffect(() => {
+    if (status !== "streaming") {
+      return;
+    }
+
+    if (mode === "break") {
+      clearUploadTimer();
+      return;
+    }
+
+    if (wasStreamingRef.current && frameTimerRef.current === null) {
+      startUploadTimer();
+    }
+  }, [mode, status, clearUploadTimer, startUploadTimer]);
 
   useEffect(() => {
     return () => {
@@ -120,5 +175,6 @@ export const useBrowserCamera = () => {
     framesSent,
     handleEnableCamera,
     stopStream,
+    sendFrameNow: captureAndSendFrame,
   };
 };

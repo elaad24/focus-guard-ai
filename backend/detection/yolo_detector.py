@@ -61,6 +61,7 @@ class YoloDetector:
                 "phones": [],
                 "tablets": [],
                 "phone_near_person": False,
+                "tablet_near_person": False,
                 "tablet_detected": False,
             }
 
@@ -75,6 +76,7 @@ class YoloDetector:
                 "phones": phones,
                 "tablets": tablets,
                 "phone_near_person": False,
+                "tablet_near_person": False,
                 "tablet_detected": False,
             }
 
@@ -87,7 +89,7 @@ class YoloDetector:
             if cls_id == self.PERSON_CLASS and conf >= 0.35:
                 bbox.label = "person"
                 persons.append(bbox)
-            elif cls_id == self.PHONE_CLASS and conf >= 0.30:
+            elif cls_id == self.PHONE_CLASS and conf >= 0.25:
                 bbox.label = "phone"
                 phones.append(bbox)
             elif cls_id in {self.LAPTOP_CLASS, self.BOOK_CLASS} and conf >= 0.30:
@@ -95,12 +97,14 @@ class YoloDetector:
                 if self._looks_like_tablet(bbox):
                     tablets.append(bbox)
 
-        phone_near_person = self._phone_near_person(persons, phones)
+        phone_near_person = self._object_near_person(persons, phones)
+        tablet_near_person = self._object_near_person(persons, tablets)
         return {
             "persons": persons,
             "phones": phones,
             "tablets": tablets,
             "phone_near_person": phone_near_person,
+            "tablet_near_person": tablet_near_person,
             "tablet_detected": len(tablets) > 0,
         }
 
@@ -112,14 +116,22 @@ class YoloDetector:
         aspect = max(width, height) / min(width, height)
         return bbox.diagonal >= 120 and aspect <= 2.2
 
-    def _phone_near_person(self, persons: list[BoundingBox], phones: list[BoundingBox]) -> bool:
-        if not persons or not phones:
+    def _object_near_person(
+        self,
+        persons: list[BoundingBox],
+        objects: list[BoundingBox],
+        distance_threshold: float = 260.0,
+    ) -> bool:
+        if not persons or not objects:
             return False
-        for phone in phones:
+        for obj in objects:
             for person in persons:
-                if self._iou(phone, person) > 0.02 or self._distance(phone, person) < 180:
+                if self._iou(obj, person) > 0.02 or self._distance(obj, person) < distance_threshold:
                     return True
         return False
+
+    def _phone_near_person(self, persons: list[BoundingBox], phones: list[BoundingBox]) -> bool:
+        return self._object_near_person(persons, phones)
 
     def phone_near_hand_or_face(
         self,

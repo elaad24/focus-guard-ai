@@ -17,6 +17,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "keyboardMouseIdleLimitSeconds": 60,
     "procrastinationScoreThreshold": 70,
     "cooldownAfterDismissSeconds": 120,
+    "inputActivityFocusWindowSeconds": 10,
     "soundEnabled": True,
     "notificationsEnabled": True,
     "debugMode": False,

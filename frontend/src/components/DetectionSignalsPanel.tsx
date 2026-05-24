@@ -2,6 +2,7 @@ import { DetectionSignals } from "../types";
 
 type DetectionSignalsPanelProps = {
   signals: DetectionSignals;
+  inputActivityOverrideActive?: boolean;
 };
 
 const signalLabels: Array<{ key: keyof DetectionSignals; label: string }> = [
@@ -14,15 +15,24 @@ const signalLabels: Array<{ key: keyof DetectionSignals; label: string }> = [
   { key: "keyboard_mouse_idle", label: "Keyboard/mouse idle" },
   { key: "body_hand_idle", label: "Body/hand idle" },
   { key: "tablet_detected", label: "Tablet detected" },
+  { key: "tablet_near_person", label: "Tablet near person" },
   { key: "tablet_mode_active", label: "Tablet mode active" },
   { key: "break_mode_active", label: "Break mode active" },
   { key: "video_lesson_mode_active", label: "Video lesson mode active" },
 ];
 
-export const DetectionSignalsPanel = ({ signals }: DetectionSignalsPanelProps) => {
+export const DetectionSignalsPanel = ({
+  signals,
+  inputActivityOverrideActive = false,
+}: DetectionSignalsPanelProps) => {
   return (
     <section className="panel span-6" data-test-id="detection-signals-panel">
       <h2 className="panel-title">Detection Signals</h2>
+      {inputActivityOverrideActive ? (
+        <div className="input-override-badge" data-test-id="input-activity-override-badge">
+          Input activity — gaze/idle ignored
+        </div>
+      ) : null}
       <div className="signal-list">
         {signalLabels.map((item) => (
           <div key={item.key} className="signal-item">

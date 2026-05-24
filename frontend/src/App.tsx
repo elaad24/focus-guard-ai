@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { getHealth } from "./api/settings";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getGazeCalibration, getHealth } from "./api/settings";
 import { useStatus } from "./api/websocket";
 import { AlertPanel } from "./components/AlertPanel";
 import { CameraPreviewPanel } from "./components/CameraPreviewPanel";
@@ -12,13 +12,29 @@ import { ModesPanel } from "./components/ModesPanel";
 import { SessionSummaryPanel } from "./components/SessionSummaryPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WarningBanner } from "./components/WarningBanner";
+import { WorkstationSetupPanel } from "./components/WorkstationSetupPanel";
+import { useResourceUsage } from "./hooks/useResourceUsage";
 import { HealthResponse } from "./types";
 
 const HEALTH_POLL_INTERVAL_MS = 30_000;
 
+type CameraControls = {
+  sendFrameNow: () => void;
+  enableCamera: () => void;
+  isStreaming: boolean;
+};
+
 const App = () => {
   const { status, connectionStatus } = useStatus();
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
+  const [cameraStreaming, setCameraStreaming] = useState(false);
+  const cameraControlsRef = useRef<CameraControls>({
+    sendFrameNow: () => {},
+    enableCamera: () => {},
+    isStreaming: false,
+  });
+  const resources = useResourceUsage();
 
   useEffect(() => {
     const fetchHealth = async () => {
@@ -35,6 +51,31 @@ const App = () => {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    getGazeCalibration()
+      .then((calibration) => {
+        if (!calibration.calibrated) {
+          setShowSetupWizard(true);
+        }
+      })
+      .catch(() => {
+        setShowSetupWizard(true);
+      });
+  }, []);
+
+  const handleCameraControlsReady = useCallback((controls: CameraControls) => {
+    cameraControlsRef.current = controls;
+    setCameraStreaming(controls.isStreaming);
+  }, []);
+
+  const handleSetupComplete = () => {
+    setShowSetupWizard(false);
+  };
+
+  const handleRecalibrate = () => {
+    setShowSetupWizard(true);
+  };
+
   return (
     <div className="app-shell" data-test-id="focus-guard-app">
       <header className="app-header">
@@ -48,6 +89,22 @@ const App = () => {
           </span>
           <span className="chip">Mode: {status.mode}</span>
           <span className="chip">Focus: {status.focus_score}</span>
+          {status.gaze_calibrated ? (
+            <span className="chip" data-test-id="gaze-calibrated-chip">
+              Gaze: calibrated
+            </span>
+          ) : (
+            <span className="chip">Gaze: not calibrated</span>
+          )}
+          <span className="chip resource-chip" data-test-id="resource-be-cpu">
+            BE CPU: {resources.backendCpuPercent !== null ? `${resources.backendCpuPercent}%` : "N/A"}
+          </span>
+          <span className="chip resource-chip" data-test-id="resource-be-mem">
+            BE RAM: {resources.backendMemoryMb !== null ? `${resources.backendMemoryMb}MB` : "N/A"}
+          </span>
+          <span className="chip resource-chip" data-test-id="resource-fe-mem">
+            FE RAM: {resources.frontendMemoryMb !== null ? `${resources.frontendMemoryMb}MB` : "N/A"}
+          </span>
         </div>
       </header>
 
@@ -60,17 +117,33 @@ const App = () => {
           fps={status.fps}
           mode={status.mode}
         />
-        <CameraPreviewPanel cameraOk={status.camera_ok} />
+        <CameraPreviewPanel
+          cameraOk={status.camera_ok}
+          mode={status.mode}
+          onControlsReady={handleCameraControlsReady}
+        />
         <LiveStatusPanel status={status} />
         <FocusScorePanel status={status} />
-        <DetectionSignalsPanel signals={status.signals} />
+        <DetectionSignalsPanel
+          signals={status.signals}
+          inputActivityOverrideActive={status.input_activity_override_active}
+        />
         <ModesPanel currentMode={status.mode} />
-        <SettingsPanel />
+        <SettingsPanel onRecalibrate={handleRecalibrate} gazeCalibrated={status.gaze_calibrated} />
         <SessionSummaryPanel summary={status.session_summary} />
         <EventLogPanel events={status.events} />
       </main>
 
       <AlertPanel status={status} />
+
+      <WorkstationSetupPanel
+        isOpen={showSetupWizard}
+        status={status}
+        cameraStreaming={cameraStreaming}
+        onEnableCamera={() => cameraControlsRef.current.enableCamera()}
+        onSendFrameNow={() => cameraControlsRef.current.sendFrameNow()}
+        onComplete={handleSetupComplete}
+      />
     </div>
   );
 };

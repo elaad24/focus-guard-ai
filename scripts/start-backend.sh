@@ -16,4 +16,14 @@ cd "$BACKEND_DIR"
 source "$VENV/bin/activate"
 
 echo "Starting Focus Guard backend on http://127.0.0.1:${PORT}"
-exec uvicorn main:app --reload --host 127.0.0.1 --port "$PORT"
+exec uvicorn main:app \
+  --reload \
+  --reload-dir "$BACKEND_DIR" \
+  --reload-include "*.py" \
+  --reload-exclude "config.json" \
+  --reload-exclude "gaze_calibration.json" \
+  --reload-exclude "assets/*" \
+  --reload-exclude "yolov8n.pt" \
+  --reload-exclude "__pycache__/*" \
+  --host 127.0.0.1 \
+  --port "$PORT"

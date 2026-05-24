@@ -28,6 +28,7 @@ class DetectionSignals:
     keyboard_mouse_idle: bool = False
     body_hand_idle: bool = False
     tablet_detected: bool = False
+    tablet_near_person: bool = False
     tablet_mode_active: bool = False
     break_mode_active: bool = False
     video_lesson_mode_active: bool = False
@@ -43,6 +44,7 @@ class DetectionSignals:
             "keyboard_mouse_idle": self.keyboard_mouse_idle,
             "body_hand_idle": self.body_hand_idle,
             "tablet_detected": self.tablet_detected,
+            "tablet_near_person": self.tablet_near_person,
             "tablet_mode_active": self.tablet_mode_active,
             "break_mode_active": self.break_mode_active,
             "video_lesson_mode_active": self.video_lesson_mode_active,
@@ -88,6 +90,7 @@ class WorldState:
     focus_score: int = 85
     distraction_score: int = 0
     distraction_contributors: list[str] = field(default_factory=list)
+    focus_contributors: list[str] = field(default_factory=list)
     signals: DetectionSignals = field(default_factory=DetectionSignals)
     keyboard_mouse_idle_seconds: float = 0.0
     time_above_threshold_seconds: float = 0.0
@@ -109,6 +112,15 @@ class WorldState:
     current_focus_streak: float = 0.0
     current_distraction_streak: float = 0.0
     phone_near_since: float | None = None
+    last_distraction_score: int = 0
+    last_distraction_contributors: list[str] = field(default_factory=list)
+    last_person_detected_at: float | None = None
+    gaze_pitch: float = 0.0
+    gaze_yaw: float = 0.0
+    gaze_calibrated: bool = False
+    workstation_profile: str | None = None
+    recent_input_activity: bool = False
+    input_activity_override_active: bool = False
 
     def add_event(self, event_type: str, message: str) -> None:
         entry = {
@@ -126,6 +138,7 @@ class WorldState:
             "focus_score": self.focus_score,
             "distraction_score": self.distraction_score,
             "distraction_contributors": self.distraction_contributors,
+            "focus_contributors": self.focus_contributors,
             "signals": self.signals.to_dict(),
             "keyboard_mouse_idle_seconds": round(self.keyboard_mouse_idle_seconds, 1),
             "time_above_threshold_seconds": round(self.time_above_threshold_seconds, 1),
@@ -140,6 +153,12 @@ class WorldState:
             "active_window": self.active_window,
             "session_summary": self.session.to_dict(),
             "events": self.events[:50],
+            "gaze_pitch": round(self.gaze_pitch, 2),
+            "gaze_yaw": round(self.gaze_yaw, 2),
+            "gaze_calibrated": self.gaze_calibrated,
+            "workstation_profile": self.workstation_profile,
+            "recent_input_activity": self.recent_input_activity,
+            "input_activity_override_active": self.input_activity_override_active,
         }
 
 
