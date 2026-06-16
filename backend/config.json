@@ -1,6 +1,6 @@
 {
   "mode": "normal",
-  "softWarningAfterSeconds": 30,
+  "softWarningAfterSeconds": 45,
   "mediumWarningAfterSeconds": 60,
   "finalAlertAfterSeconds": 90,
   "phoneUsageLimitSeconds": 90,
@@ -10,8 +10,7 @@
   "inputActivityFocusWindowSeconds": 10,
   "soundEnabled": true,
   "notificationsEnabled": true,
-  "debugMode": true,
-  "saveRawVideo": false,
+  "debugMode": false,
   "yawnWindowSeconds": 90,
   "yawnsInWindowThreshold": 3,
   "eyeClosedAlertSeconds": 2.5,

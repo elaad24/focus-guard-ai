@@ -9,7 +9,7 @@ This is **not** a task manager, Pomodoro app, or productivity dashboard. It is a
 - Everything runs locally on your machine
 - No cloud APIs
 - No image/video upload
-- No raw camera frames saved by default (`saveRawVideo: false`)
+- No raw camera frames saved — video recording is not supported
 - Keyboard/mouse monitoring records **timestamps only** — never key content
 - WebSocket and REST API bind to localhost only
 
@@ -120,7 +120,7 @@ Settings live in `backend/config.json` and can be changed from the dashboard Set
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `mode` | `normal` | Active mode: `normal`, `video_lesson`, `ipad`, `break` |
+| `mode` | `normal` | Active mode: `normal`, `video_lesson`, `ipad`, `reading_meeting`, `break` |
 | `softWarningAfterSeconds` | 45 | Visual-only soft warning after score above threshold |
 | `mediumWarningAfterSeconds` | 60 | Stronger warning + optional short beep |
 | `finalAlertAfterSeconds` | 90 | Persistent sound + modal (before 2 minutes by default) |
@@ -128,10 +128,19 @@ Settings live in `backend/config.json` and can be changed from the dashboard Set
 | `keyboardMouseIdleLimitSeconds` | 60 | Idle threshold for keyboard/mouse |
 | `procrastinationScoreThreshold` | 70 | Distraction score threshold |
 | `cooldownAfterDismissSeconds` | 120 | Cooldown after dismissing final alert |
+| `inputActivityFocusWindowSeconds` | 10 | Recent keyboard/mouse activity window that suppresses idle/gaze signals |
 | `soundEnabled` | true | Enable alert sounds |
 | `notificationsEnabled` | true | macOS desktop notifications on final alert |
-| `debugMode` | true | Verbose backend behavior |
-| `saveRawVideo` | false | Not implemented — frames are never saved |
+| `debugMode` | false | Verbose backend behavior |
+| `yawnWindowSeconds` | 90 | Rolling window for yawn counting |
+| `yawnsInWindowThreshold` | 3 | Yawns in window that trigger fatigue signal |
+| `eyeClosedAlertSeconds` | 2.5 | Seconds eyes closed before fatigue signal |
+| `fatigueScoreWeight` | 25 | Distraction score weight for fatigue signals |
+| `fatigueSoftWarningAfterSeconds` | 15 | Faster soft warning when fatigue is active |
+| `earClosedThreshold` | 0.2 | Eye aspect ratio threshold for closed eyes |
+| `marYawnThreshold` | 0.55 | Mouth aspect ratio threshold for yawns |
+
+Warning thresholds must satisfy `softWarningAfterSeconds < mediumWarningAfterSeconds < finalAlertAfterSeconds`.
 
 ## Modes
 
@@ -140,7 +149,10 @@ Settings live in `backend/config.json` and can be changed from the dashboard Set
 | **Normal** | Standard rules; phone + idle are suspicious |
 | **Video Lesson** | Less weight on keyboard idle and looking away; phone still suspicious |
 | **iPad** | Tablet usage allowed; phone still suspicious; reduced idle/head-down weight when tablet visible |
+| **Reading / Meeting** | Head-down and looking-away ignored; reduced idle weight; phone still suspicious |
 | **Break** | Alerts disabled; passive monitoring and stats continue |
+
+Use **Snooze** from the dashboard to suppress all alerts for 15/25/60 minutes while monitoring continues.
 
 ## Distraction score (signal weights)
 
@@ -169,7 +181,7 @@ User clicks "I'm back" → DISMISSED_COOLDOWN (120s default)
 Score drops below threshold for 2s → FOCUSED
 ```
 
-During cooldown, signals are still tracked but new alerts are suppressed.
+During cooldown or snooze, signals are still tracked but new alerts are suppressed.
 
 ## API endpoints
 
@@ -181,8 +193,11 @@ During cooldown, signals are still tracked but new alerts are suppressed.
 | GET | `/state` | Full state snapshot |
 | POST | `/mode` | Change mode |
 | POST | `/alert/dismiss` | Dismiss final alert |
+| POST | `/snooze` | Start timed alert snooze (`durationSeconds`: 60–7200) |
+| POST | `/snooze/cancel` | Cancel active snooze |
 | GET | `/session-summary` | Session stats |
-| POST | `/session/reset` | Reset session counters |
+| POST | `/session/reset` | Reset session counters (persists summary to history) |
+| GET | `/history` | Past session summaries from SQLite (`?limit=20`) |
 | POST | `/calibration/screen-zone` | Save screen zone rectangle |
 | WS | `/ws/status` | Live status stream (~5 Hz) |
 
@@ -197,6 +212,7 @@ focus-guard-ai/
     detection/     # camera, YOLO, MediaPipe face/hands, screen zone
     activity/      # keyboard/mouse timestamps, active window
     logic/         # scores, state machine, session tracker, modes
+    storage/       # SQLite session history
     alerts/        # sound + notifications
     api/           # REST + WebSocket
     assets/        # alert.wav (auto-generated on first run)
@@ -212,8 +228,7 @@ focus-guard-ai/
 - Custom YOLO model for phone/tablet distinction
 - Screen-zone calibration UI
 - Active-window distraction heuristics
-- SQLite session history
-- Daily/weekly focus analytics
+- Daily/weekly focus analytics dashboard
 - Local API integration with your separate task dashboard
 
 ## License

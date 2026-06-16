@@ -82,6 +82,33 @@ class StateMachine:
 
         world_state.mutate(mutate)
 
+    def start_snooze(self, duration_seconds: float) -> None:
+        def mutate(ws: WorldState) -> None:
+            now = time.monotonic()
+            self._sound_alert.stop_loop()
+            ws.snooze_until = now + duration_seconds
+            ws.state = FocusState.SNOOZED
+            ws.warning_stage = "snooze"
+            ws.alert_active = False
+            ws.above_threshold_since = None
+            ws.time_above_threshold_seconds = 0.0
+            ws.below_threshold_since = None
+            self._soft_alert_sent = False
+            self._medium_beep_sent = False
+            minutes = int(duration_seconds // 60)
+            ws.add_event("snooze_started", f"Snooze active for {minutes} minutes")
+
+        world_state.mutate(mutate)
+
+    def cancel_snooze(self) -> None:
+        def mutate(ws: WorldState) -> None:
+            ws.snooze_until = None
+            ws.state = FocusState.FOCUSED
+            ws.warning_stage = "none"
+            ws.add_event("snooze_cancelled", "Snooze cancelled by user")
+
+        world_state.mutate(mutate)
+
     def set_mode(self, mode: str) -> None:
         def mutate(ws: WorldState) -> None:
             ws.mode = mode
@@ -246,6 +273,19 @@ class StateMachine:
             ws.alert_active = False
             ws.cooldown_remaining_seconds = 0.0
             return
+
+        if ws.snooze_until is not None:
+            remaining = ws.snooze_until - now
+            if remaining > 0:
+                ws.state = FocusState.SNOOZED
+                ws.warning_stage = "snooze"
+                ws.alert_active = False
+                self._sound_alert.stop_loop()
+                ws.above_threshold_since = None
+                ws.time_above_threshold_seconds = 0.0
+                return
+            ws.snooze_until = None
+            ws.add_event("snooze_finished", "Snooze period ended")
 
         if ws.cooldown_until is not None:
             remaining = ws.cooldown_until - now

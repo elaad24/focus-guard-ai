@@ -15,6 +15,7 @@ class FocusState(str, Enum):
     ALERT_ACTIVE = "ALERT_ACTIVE"
     DISMISSED_COOLDOWN = "DISMISSED_COOLDOWN"
     BREAK_MODE = "BREAK_MODE"
+    SNOOZED = "SNOOZED"
 
 
 @dataclass
@@ -128,6 +129,7 @@ class WorldState:
     recent_input_activity: bool = False
     input_activity_override_active: bool = False
     fatigue_active: bool = False
+    snooze_until: float | None = None
 
     def add_event(
         self,
@@ -150,6 +152,15 @@ class WorldState:
         self.events = self.events[:100]
 
     def to_snapshot(self) -> dict[str, Any]:
+        now = time.monotonic()
+        snooze_remaining = 0.0
+        snooze_active = False
+        if self.snooze_until is not None:
+            remaining = self.snooze_until - now
+            if remaining > 0:
+                snooze_active = True
+                snooze_remaining = remaining
+
         return {
             "state": self.state.value,
             "mode": self.mode,
@@ -178,6 +189,8 @@ class WorldState:
             "recent_input_activity": self.recent_input_activity,
             "input_activity_override_active": self.input_activity_override_active,
             "fatigue_active": self.fatigue_active,
+            "snooze_active": snooze_active,
+            "snooze_remaining_seconds": round(snooze_remaining, 1),
         }
 
 

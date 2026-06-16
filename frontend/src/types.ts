@@ -1,4 +1,4 @@
-export type FocusMode = "normal" | "video_lesson" | "ipad" | "break";
+export type FocusMode = "normal" | "video_lesson" | "ipad" | "break" | "reading_meeting";
 
 export type FocusState =
   | "FOCUSED"
@@ -7,7 +7,8 @@ export type FocusState =
   | "DISTRACTION_WARNING_MEDIUM"
   | "ALERT_ACTIVE"
   | "DISMISSED_COOLDOWN"
-  | "BREAK_MODE";
+  | "BREAK_MODE"
+  | "SNOOZED";
 
 export type DetectionSignals = {
   person_detected: boolean;
@@ -79,6 +80,8 @@ export type StatusSnapshot = {
   recent_input_activity: boolean;
   input_activity_override_active: boolean;
   fatigue_active: boolean;
+  snooze_active: boolean;
+  snooze_remaining_seconds: number;
 };
 
 export type WorkstationProfile = "laptop_below" | "screens_in_front" | "side_monitors";
@@ -105,7 +108,6 @@ export type AppSettings = {
   soundEnabled: boolean;
   notificationsEnabled: boolean;
   debugMode: boolean;
-  saveRawVideo: boolean;
 };
 
 export type HealthResponse = {
@@ -191,4 +193,6 @@ export const DEFAULT_STATUS: StatusSnapshot = {
   recent_input_activity: false,
   input_activity_override_active: false,
   fatigue_active: false,
+  snooze_active: false,
+  snooze_remaining_seconds: 0,
 };

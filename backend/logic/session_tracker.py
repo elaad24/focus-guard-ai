@@ -17,6 +17,7 @@ class SessionTracker:
             FocusState.FOCUSED,
             FocusState.DISMISSED_COOLDOWN,
             FocusState.BREAK_MODE,
+            FocusState.SNOOZED,
         }
 
         if is_focused:

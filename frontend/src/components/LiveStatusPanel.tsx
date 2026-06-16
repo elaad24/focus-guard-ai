@@ -10,6 +10,7 @@ const stateClass = (state: string) => {
   if (state === "DISTRACTION_WARNING_MEDIUM") return "warning-medium";
   if (state === "ALERT_ACTIVE") return "alert";
   if (state === "BREAK_MODE") return "break";
+  if (state === "SNOOZED") return "break";
   return "distracted";
 };
 

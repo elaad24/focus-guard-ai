@@ -4,7 +4,6 @@ import asyncio
 import json
 import threading
 import time
-from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -12,8 +11,7 @@ from logic.world_state import world_state
 
 _connections: set[WebSocket] = set()
 _lock = threading.Lock()
-_running = False
-_thread: threading.Thread | None = None
+_broadcast_task: asyncio.Task | None = None
 BROADCAST_INTERVAL_SECONDS = 2.0
 _POLL_INTERVAL_SECONDS = 0.25
 
@@ -31,47 +29,51 @@ def disconnect(websocket: WebSocket) -> None:
 
 
 def start_broadcaster() -> None:
-    global _running, _thread
-    if _running:
+    global _broadcast_task
+    if _broadcast_task is not None and not _broadcast_task.done():
         return
-    _running = True
-    _thread = threading.Thread(target=_broadcast_loop, daemon=True, name="ws-broadcast")
-    _thread.start()
+    _broadcast_task = asyncio.create_task(_broadcast_loop(), name="ws-broadcast")
 
 
-def stop_broadcaster() -> None:
-    global _running
-    _running = False
+async def stop_broadcaster() -> None:
+    global _broadcast_task
+    if _broadcast_task is None:
+        return
+    _broadcast_task.cancel()
+    try:
+        await _broadcast_task
+    except asyncio.CancelledError:
+        pass
+    _broadcast_task = None
 
 
-def _broadcast_loop() -> None:
+async def _broadcast_loop() -> None:
     last_forced_broadcast = time.monotonic()
-    while _running:
-        now = time.monotonic()
-        should_send = world_state.should_broadcast() or (
-            now - last_forced_broadcast >= BROADCAST_INTERVAL_SECONDS
-        )
-        if should_send:
-            payload = json.dumps(world_state.snapshot())
-            dead: list[WebSocket] = []
-            with _lock:
-                connections = list(_connections)
-            for ws in connections:
-                try:
-                    asyncio.run(_send(ws, payload))
-                except Exception:
-                    dead.append(ws)
-            if dead:
+    try:
+        while True:
+            now = time.monotonic()
+            should_send = world_state.should_broadcast() or (
+                now - last_forced_broadcast >= BROADCAST_INTERVAL_SECONDS
+            )
+            if should_send:
+                payload = json.dumps(world_state.snapshot())
+                dead: list[WebSocket] = []
                 with _lock:
-                    for ws in dead:
-                        _connections.discard(ws)
-            world_state.mark_broadcasted()
-            last_forced_broadcast = now
-        time.sleep(_POLL_INTERVAL_SECONDS)
-
-
-async def _send(websocket: WebSocket, payload: str) -> None:
-    await websocket.send_text(payload)
+                    connections = list(_connections)
+                for ws in connections:
+                    try:
+                        await ws.send_text(payload)
+                    except Exception:
+                        dead.append(ws)
+                if dead:
+                    with _lock:
+                        for ws in dead:
+                            _connections.discard(ws)
+                world_state.mark_broadcasted()
+                last_forced_broadcast = now
+            await asyncio.sleep(_POLL_INTERVAL_SECONDS)
+    except asyncio.CancelledError:
+        raise
 
 
 async def websocket_status_handler(websocket: WebSocket) -> None:

@@ -24,6 +24,7 @@ export const warningStageLabels: Record<string, string> = {
   building: "Building",
   cooldown: "Cooldown",
   break: "Break",
+  snooze: "Snooze",
 };
 
 export const labelContributor = (key: string): string =>

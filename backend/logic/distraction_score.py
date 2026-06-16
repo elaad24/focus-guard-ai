@@ -124,6 +124,15 @@ def _mode_weights(mode: str) -> dict[str, float]:
             "kb_idle": 0.2,
             "body_idle": 0.2,
         }
+    if mode == "reading_meeting":
+        return {
+            "phone_near_person": 1.0,
+            "phone_near_hand_or_face": 1.0,
+            "head_down": 0.0,
+            "looking_away": 0.0,
+            "kb_idle": 0.25,
+            "body_idle": 0.25,
+        }
     return {
         "phone_near_person": 1.0,
         "phone_near_hand_or_face": 1.0,

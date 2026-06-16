@@ -5,6 +5,7 @@ backend/**/__pycache__/
 backend/*.pyc
 backend/.pytest_cache/
 backend/yolov8n.pt
+backend/focus_history.db
 backend/gaze_calibration.json
 backend/runs/
 backend/assets/*.wav

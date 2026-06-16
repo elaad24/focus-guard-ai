@@ -21,12 +21,13 @@ def mode_label(mode: str) -> str:
         "video_lesson": "Video Lesson",
         "ipad": "iPad",
         "break": "Break",
+        "reading_meeting": "Reading / Meeting",
     }
     return labels.get(mode, mode)
 
 
 def validate_mode(mode: str) -> str:
-    valid = {"normal", "video_lesson", "ipad", "break"}
+    valid = {"normal", "video_lesson", "ipad", "break", "reading_meeting"}
     if mode not in valid:
         raise ValueError(f"Invalid mode: {mode}")
     return mode
@@ -39,4 +40,6 @@ def get_mode_config_overrides(mode: str) -> dict[str, Any]:
         return {"allow_tablet_usage": True}
     if mode == "break":
         return {"disable_alerts": True}
+    if mode == "reading_meeting":
+        return {"allow_off_screen_focus": True}
     return {}

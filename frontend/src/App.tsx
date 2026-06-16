@@ -108,7 +108,7 @@ const App = () => {
           signals={status.signals}
           inputActivityOverrideActive={status.input_activity_override_active}
         />
-        <ModesPanel currentMode={status.mode} />
+        <ModesPanel currentMode={status.mode} status={status} />
         <SettingsPanel onRecalibrate={handleRecalibrate} gazeCalibrated={status.gaze_calibrated} />
         <SessionSummaryPanel summary={status.session_summary} />
         <EventLogPanel events={status.events} />

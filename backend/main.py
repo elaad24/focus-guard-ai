@@ -24,6 +24,7 @@ from logic.config_store import config_store
 from logic.mode_rules import apply_mode_to_signals
 from logic.state_machine import StateMachine
 from logic.world_state import DetectionSignals, world_state
+from storage.history_store import history_store
 
 camera = CameraCapture()
 yolo = YoloDetector()
@@ -213,7 +214,8 @@ async def lifespan(_app: FastAPI):
     _detection_running = False
     if _detection_thread and _detection_thread.is_alive():
         _detection_thread.join(timeout=2.0)
-    stop_broadcaster()
+    await stop_broadcaster()
+    history_store.save(world_state.read().session, "shutdown")
     state_machine.stop()
     kb_mouse.stop()
     active_window.stop()

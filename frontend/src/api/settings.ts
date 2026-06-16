@@ -65,6 +65,25 @@ export const resetGazeCalibration = () =>
     method: "POST",
   });
 
+export const startSnooze = (durationSeconds: number) =>
+  request<{ snoozed: boolean; snooze_active: boolean; snooze_remaining_seconds: number }>(
+    "/snooze",
+    {
+      method: "POST",
+      body: JSON.stringify({ durationSeconds }),
+    },
+  );
+
+export const cancelSnooze = () =>
+  request<{ snoozed: boolean }>("/snooze/cancel", {
+    method: "POST",
+  });
+
+export const getSessionHistory = (limit = 20) =>
+  request<{ sessions: Array<Record<string, unknown>>; count: number }>(
+    `/history?limit=${limit}`,
+  );
+
 export const calibrateScreenZone = (zone: { x1: number; y1: number; x2: number; y2: number }) =>
   request<{ x1: number; y1: number; x2: number; y2: number }>("/calibration/screen-zone", {
     method: "POST",

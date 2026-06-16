@@ -21,7 +21,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "soundEnabled": True,
     "notificationsEnabled": True,
     "debugMode": False,
-    "saveRawVideo": False,
     "yawnWindowSeconds": 90,
     "yawnsInWindowThreshold": 3,
     "eyeClosedAlertSeconds": 2.5,
@@ -31,7 +30,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "marYawnThreshold": 0.55,
 }
 
-VALID_MODES = {"normal", "video_lesson", "ipad", "break"}
+VALID_MODES = {"normal", "video_lesson", "ipad", "break", "reading_meeting"}
 
 
 class ConfigStore:
@@ -57,8 +56,6 @@ class ConfigStore:
     def update(self, partial: dict[str, Any]) -> dict[str, Any]:
         if "mode" in partial and partial["mode"] not in VALID_MODES:
             raise ValueError(f"Invalid mode: {partial['mode']}")
-        if partial.get("saveRawVideo") is True:
-            partial["saveRawVideo"] = False
         with self._lock:
             self._config.update(partial)
             self._path.write_text(json.dumps(self._config, indent=2))

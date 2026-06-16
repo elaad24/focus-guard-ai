@@ -11,6 +11,7 @@ from detection.gaze_calibration import gaze_calibration_store
 from logic.config_store import config_store
 from logic.mode_rules import validate_mode
 from logic.world_state import world_state
+from storage.history_store import history_store
 from system.metrics import get_backend_resources
 
 router = APIRouter()
@@ -68,7 +69,23 @@ class SettingsUpdate(BaseModel):
     soundEnabled: bool | None = None
     notificationsEnabled: bool | None = None
     debugMode: bool | None = None
-    saveRawVideo: bool | None = None
+
+
+class SnoozeRequest(BaseModel):
+    durationSeconds: int = Field(ge=60, le=7200)
+
+
+def _validate_warning_threshold_order(effective: dict[str, Any]) -> None:
+    soft = effective.get("softWarningAfterSeconds")
+    medium = effective.get("mediumWarningAfterSeconds")
+    final = effective.get("finalAlertAfterSeconds")
+    if soft is None or medium is None or final is None:
+        return
+    if not (soft < medium < final):
+        raise HTTPException(
+            status_code=400,
+            detail="Warning thresholds must satisfy soft < medium < final",
+        )
 
 
 @router.post("/camera/frame")
@@ -132,6 +149,10 @@ def update_settings(payload: SettingsUpdate) -> dict[str, Any]:
     partial = payload.model_dump(exclude_none=True)
     if "mode" in partial:
         validate_mode(partial["mode"])
+
+    effective = {**config_store.get(), **partial}
+    _validate_warning_threshold_order(effective)
+
     updated = config_store.update(partial)
 
     def mutate(ws) -> None:
@@ -164,6 +185,27 @@ def dismiss_alert() -> dict[str, Any]:
     return {"dismissed": True}
 
 
+@router.post("/snooze")
+def start_snooze(payload: SnoozeRequest) -> dict[str, Any]:
+    if _state_machine is None:
+        raise HTTPException(status_code=503, detail="State machine not initialized")
+    _state_machine.start_snooze(float(payload.durationSeconds))
+    snapshot = world_state.snapshot()
+    return {
+        "snoozed": True,
+        "snooze_active": snapshot.get("snooze_active", False),
+        "snooze_remaining_seconds": snapshot.get("snooze_remaining_seconds", 0.0),
+    }
+
+
+@router.post("/snooze/cancel")
+def cancel_snooze() -> dict[str, Any]:
+    if _state_machine is None:
+        raise HTTPException(status_code=503, detail="State machine not initialized")
+    _state_machine.cancel_snooze()
+    return {"snoozed": False}
+
+
 @router.get("/session-summary")
 def session_summary() -> dict[str, Any]:
     return world_state.snapshot()["session_summary"]
@@ -176,10 +218,18 @@ def reset_session() -> dict[str, Any]:
     tracker = SessionTracker()
 
     def mutate(ws) -> None:
+        history_store.save(ws.session, "reset")
         tracker.reset(ws)
 
     world_state.mutate(mutate)
     return world_state.snapshot()["session_summary"]
+
+
+@router.get("/history")
+def get_history(limit: int = 20) -> dict[str, Any]:
+    safe_limit = max(1, min(limit, 100))
+    sessions = history_store.recent(safe_limit)
+    return {"sessions": sessions, "count": len(sessions)}
 
 
 @router.get("/calibration/gaze")
