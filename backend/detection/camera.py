@@ -43,6 +43,7 @@ class CameraCapture:
         self._frame_count = 0
         self._fps_window_start = time.monotonic()
         self._last_frame_at = 0.0
+        self._frame_generation = 0
 
     @property
     def source(self) -> CameraSource:
@@ -75,11 +76,25 @@ class CameraCapture:
             self._capture.release()
             self._capture = None
 
+    @property
+    def frame_generation(self) -> int:
+        with self._lock:
+            return self._frame_generation
+
     def get_frame(self) -> np.ndarray | None:
         with self._lock:
             if self._latest_frame is None:
                 return None
             return self._latest_frame.copy()
+
+    def get_frame_for_detection(self, last_processed_generation: int) -> tuple[np.ndarray, int] | None:
+        """Return a frame copy only when generation has advanced since last_processed_generation."""
+        with self._lock:
+            if self._latest_frame is None:
+                return None
+            if self._frame_generation <= last_processed_generation:
+                return None
+            return self._latest_frame.copy(), self._frame_generation
 
     def submit_browser_frame(self, jpeg_bytes: bytes) -> bool:
         if self._source != "browser":
@@ -95,6 +110,7 @@ class CameraCapture:
         now = time.monotonic()
         with self._lock:
             self._latest_frame = frame
+            self._frame_generation += 1
             self._last_frame_at = now
             self._frame_count += 1
             elapsed = now - self._fps_window_start
@@ -108,6 +124,7 @@ class CameraCapture:
     def _store_frame(self, frame: np.ndarray) -> None:
         with self._lock:
             self._latest_frame = frame
+            self._frame_generation += 1
 
         self._frame_count += 1
         elapsed = time.monotonic() - self._fps_window_start

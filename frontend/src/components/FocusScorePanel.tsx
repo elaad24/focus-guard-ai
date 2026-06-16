@@ -1,24 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { distractionLabels } from "../lib/contributorLabels";
 import { StatusSnapshot } from "../types";
 
 type FocusScorePanelProps = {
   status: StatusSnapshot;
-};
-
-const distractionLabels: Record<string, string> = {
-  phone_near_person: "Phone detected near you",
-  phone_near_hand_or_face: "Phone near hand or face",
-  phone_usage_over_limit: "Phone use exceeded time limit",
-  head_looking_down: "Head looking down",
-  looking_away_from_screen: "Looking away from screen",
-  keyboard_mouse_idle: "No keyboard/mouse activity",
-  body_hand_idle: "Hands not moving",
-  no_person_detected: "Person not visible to camera",
-  high_distraction: "High distraction level",
-  elevated_distraction: "Elevated distraction level",
-  mild_distraction: "Mild distraction detected",
-  person_not_visible: "Person not visible to camera",
-  break_mode: "Break mode active",
 };
 
 const focusLabels: Record<string, string> = {

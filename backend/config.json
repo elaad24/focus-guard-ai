@@ -11,5 +11,12 @@
   "soundEnabled": true,
   "notificationsEnabled": true,
   "debugMode": true,
-  "saveRawVideo": false
+  "saveRawVideo": false,
+  "yawnWindowSeconds": 90,
+  "yawnsInWindowThreshold": 3,
+  "eyeClosedAlertSeconds": 2.5,
+  "fatigueScoreWeight": 25,
+  "fatigueSoftWarningAfterSeconds": 15,
+  "earClosedThreshold": 0.2,
+  "marYawnThreshold": 0.55
 }

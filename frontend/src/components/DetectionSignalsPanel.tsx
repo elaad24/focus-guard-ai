@@ -19,6 +19,9 @@ const signalLabels: Array<{ key: keyof DetectionSignals; label: string }> = [
   { key: "tablet_mode_active", label: "Tablet mode active" },
   { key: "break_mode_active", label: "Break mode active" },
   { key: "video_lesson_mode_active", label: "Video lesson mode active" },
+  { key: "eyes_closed", label: "Eyes closed" },
+  { key: "frequent_yawns", label: "Frequent yawns (fatigue)" },
+  { key: "eyes_closed_too_long", label: "Eyes closed too long" },
 ];
 
 export const DetectionSignalsPanel = ({

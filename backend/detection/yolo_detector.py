@@ -65,7 +65,17 @@ class YoloDetector:
                 "tablet_detected": False,
             }
 
-        results = self._model(frame, verbose=False)[0]
+        results = self._model(
+            frame,
+            verbose=False,
+            imgsz=640,
+            classes=[
+                self.PERSON_CLASS,
+                self.PHONE_CLASS,
+                self.LAPTOP_CLASS,
+                self.BOOK_CLASS,
+            ],
+        )[0]
         persons: list[BoundingBox] = []
         phones: list[BoundingBox] = []
         tablets: list[BoundingBox] = []

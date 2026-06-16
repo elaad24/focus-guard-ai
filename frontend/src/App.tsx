@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getGazeCalibration, getHealth } from "./api/settings";
+import { getGazeCalibration } from "./api/settings";
 import { useStatus } from "./api/websocket";
 import { AlertPanel } from "./components/AlertPanel";
 import { CameraPreviewPanel } from "./components/CameraPreviewPanel";
@@ -14,10 +14,6 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { WarningBanner } from "./components/WarningBanner";
 import { WorkstationSetupPanel } from "./components/WorkstationSetupPanel";
 import { useResourceUsage } from "./hooks/useResourceUsage";
-import { HealthResponse } from "./types";
-
-const HEALTH_POLL_INTERVAL_MS = 30_000;
-
 type CameraControls = {
   sendFrameNow: () => void;
   enableCamera: () => void;
@@ -26,7 +22,6 @@ type CameraControls = {
 
 const App = () => {
   const { status, connectionStatus } = useStatus();
-  const [health, setHealth] = useState<HealthResponse | null>(null);
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [cameraStreaming, setCameraStreaming] = useState(false);
   const cameraControlsRef = useRef<CameraControls>({
@@ -35,21 +30,6 @@ const App = () => {
     isStreaming: false,
   });
   const resources = useResourceUsage();
-
-  useEffect(() => {
-    const fetchHealth = async () => {
-      try {
-        const response = await getHealth();
-        setHealth(response);
-      } catch {
-        setHealth(null);
-      }
-    };
-
-    fetchHealth();
-    const interval = window.setInterval(fetchHealth, HEALTH_POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     getGazeCalibration()
@@ -112,7 +92,7 @@ const App = () => {
 
       <main className="dashboard-grid">
         <HealthPanel
-          health={health}
+          health={resources.health}
           connectionStatus={connectionStatus}
           fps={status.fps}
           mode={status.mode}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getState, setGazePose, setGazeProfile } from "../api/settings";
+import { setGazePose, setGazeProfile } from "../api/settings";
 import { StatusSnapshot, WorkstationProfile } from "../types";
 
 type SetupStep = "profile" | "pose" | "done";
@@ -37,6 +37,7 @@ const PROFILE_OPTIONS: Array<{
 
 const POSE_CAPTURE_SECONDS = 3;
 const POSE_SAMPLE_INTERVAL_MS = 400;
+const POSE_SAMPLE_DELAY_MS = 600;
 
 export const WorkstationSetupPanel = ({
   isOpen,
@@ -55,6 +56,11 @@ export const WorkstationSetupPanel = ({
   const [calibrationSummary, setCalibrationSummary] = useState("");
   const samplesRef = useRef<Array<{ pitch: number; yaw: number }>>([]);
   const captureTimerRef = useRef<number | null>(null);
+  const statusRef = useRef(status);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   const clearCaptureTimer = useCallback(() => {
     if (captureTimerRef.current !== null) {
@@ -94,10 +100,10 @@ export const WorkstationSetupPanel = ({
     }
   };
 
-  const collectSample = useCallback(async () => {
+  const collectSample = useCallback(() => {
     onSendFrameNow();
-    try {
-      const snapshot = await getState();
+    window.setTimeout(() => {
+      const snapshot = statusRef.current;
       if (snapshot.signals.person_detected) {
         samplesRef.current.push({
           pitch: snapshot.gaze_pitch,
@@ -105,16 +111,8 @@ export const WorkstationSetupPanel = ({
         });
         setSampleCount(samplesRef.current.length);
       }
-    } catch {
-      if (status.signals.person_detected) {
-        samplesRef.current.push({
-          pitch: status.gaze_pitch,
-          yaw: status.gaze_yaw,
-        });
-        setSampleCount(samplesRef.current.length);
-      }
-    }
-  }, [onSendFrameNow, status.gaze_pitch, status.gaze_yaw, status.signals.person_detected]);
+    }, POSE_SAMPLE_DELAY_MS);
+  }, [onSendFrameNow]);
 
   const finishPoseCapture = useCallback(async () => {
     const samples = samplesRef.current;

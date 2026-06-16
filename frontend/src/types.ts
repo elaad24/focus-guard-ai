@@ -23,6 +23,9 @@ export type DetectionSignals = {
   tablet_mode_active: boolean;
   break_mode_active: boolean;
   video_lesson_mode_active: boolean;
+  eyes_closed: boolean;
+  frequent_yawns: boolean;
+  eyes_closed_too_long: boolean;
 };
 
 export type SessionSummary = {
@@ -44,6 +47,8 @@ export type StatusEvent = {
   type: string;
   message: string;
   timestamp: number;
+  contributors?: Array<string>;
+  warning_stage?: string;
 };
 
 export type StatusSnapshot = {
@@ -73,6 +78,7 @@ export type StatusSnapshot = {
   workstation_profile: WorkstationProfile | null;
   recent_input_activity: boolean;
   input_activity_override_active: boolean;
+  fatigue_active: boolean;
 };
 
 export type WorkstationProfile = "laptop_below" | "screens_in_front" | "side_monitors";
@@ -148,6 +154,9 @@ export const DEFAULT_STATUS: StatusSnapshot = {
     tablet_mode_active: false,
     break_mode_active: false,
     video_lesson_mode_active: false,
+    eyes_closed: false,
+    frequent_yawns: false,
+    eyes_closed_too_long: false,
   },
   keyboard_mouse_idle_seconds: 0,
   time_above_threshold_seconds: 0,
@@ -181,4 +190,5 @@ export const DEFAULT_STATUS: StatusSnapshot = {
   workstation_profile: null,
   recent_input_activity: false,
   input_activity_override_active: false,
+  fatigue_active: false,
 };

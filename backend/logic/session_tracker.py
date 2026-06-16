@@ -50,15 +50,12 @@ class SessionTracker:
 
     def on_soft_warning(self, ws: WorldState) -> None:
         ws.session.soft_warnings += 1
-        ws.add_event("soft_warning_triggered", "Soft distraction warning triggered")
 
     def on_medium_warning(self, ws: WorldState) -> None:
         ws.session.medium_warnings += 1
-        ws.add_event("medium_warning_triggered", "Medium distraction warning triggered")
 
     def on_final_alert(self, ws: WorldState) -> None:
         ws.session.final_alerts += 1
-        ws.add_event("final_alert_triggered", "Final alert triggered")
 
     def on_dismiss(self, ws: WorldState) -> None:
         ws.session.dismissals += 1

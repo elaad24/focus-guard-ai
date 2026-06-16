@@ -32,6 +32,9 @@ class DetectionSignals:
     tablet_mode_active: bool = False
     break_mode_active: bool = False
     video_lesson_mode_active: bool = False
+    eyes_closed: bool = False
+    frequent_yawns: bool = False
+    eyes_closed_too_long: bool = False
 
     def to_dict(self) -> dict[str, bool]:
         return {
@@ -48,6 +51,9 @@ class DetectionSignals:
             "tablet_mode_active": self.tablet_mode_active,
             "break_mode_active": self.break_mode_active,
             "video_lesson_mode_active": self.video_lesson_mode_active,
+            "eyes_closed": self.eyes_closed,
+            "frequent_yawns": self.frequent_yawns,
+            "eyes_closed_too_long": self.eyes_closed_too_long,
         }
 
 
@@ -121,13 +127,25 @@ class WorldState:
     workstation_profile: str | None = None
     recent_input_activity: bool = False
     input_activity_override_active: bool = False
+    fatigue_active: bool = False
 
-    def add_event(self, event_type: str, message: str) -> None:
-        entry = {
+    def add_event(
+        self,
+        event_type: str,
+        message: str,
+        *,
+        contributors: list[str] | None = None,
+        warning_stage: str | None = None,
+    ) -> None:
+        entry: dict[str, Any] = {
             "type": event_type,
             "message": message,
             "timestamp": time.time(),
         }
+        if contributors:
+            entry["contributors"] = list(contributors)
+        if warning_stage:
+            entry["warning_stage"] = warning_stage
         self.events.insert(0, entry)
         self.events = self.events[:100]
 
@@ -159,6 +177,7 @@ class WorldState:
             "workstation_profile": self.workstation_profile,
             "recent_input_activity": self.recent_input_activity,
             "input_activity_override_active": self.input_activity_override_active,
+            "fatigue_active": self.fatigue_active,
         }
 
 
@@ -166,6 +185,8 @@ class WorldStateManager:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._state = WorldState()
+        self._snapshot_version = 0
+        self._last_broadcast_version = -1
 
     def read(self) -> WorldState:
         with self._lock:
@@ -174,7 +195,16 @@ class WorldStateManager:
     def mutate(self, fn) -> WorldState:
         with self._lock:
             fn(self._state)
+            self._snapshot_version += 1
             return self._state
+
+    def should_broadcast(self) -> bool:
+        with self._lock:
+            return self._snapshot_version != self._last_broadcast_version
+
+    def mark_broadcasted(self) -> None:
+        with self._lock:
+            self._last_broadcast_version = self._snapshot_version
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:

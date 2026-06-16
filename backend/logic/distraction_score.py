@@ -19,6 +19,8 @@ LOOKING_AWAY = 15
 KB_MOUSE_IDLE_OVER_LIMIT = 20
 BODY_HAND_IDLE_OVER_LIMIT = 10
 TABLET_REDUCTION_IF_IPAD_MODE = -25
+FATIGUE_YAWNS = 25
+FATIGUE_EYES_CLOSED = 25
 
 GAZE_IDLE_CONTRIBUTORS = frozenset({
     "head_looking_down",
@@ -73,6 +75,15 @@ def calculate_distraction_score(
     if signals.body_hand_idle and signals.keyboard_mouse_idle and not recent_input_activity:
         score += BODY_HAND_IDLE_OVER_LIMIT * weights["body_idle"]
         contributors.append("body_hand_idle")
+
+    fatigue_weight = float(config.get("fatigueScoreWeight", 25))
+    if signals.frequent_yawns:
+        score += fatigue_weight
+        contributors.append("frequent_yawns")
+
+    if signals.eyes_closed_too_long:
+        score += fatigue_weight
+        contributors.append("eyes_closed_too_long")
 
     if mode == "ipad" and signals.tablet_detected and signals.tablet_mode_active:
         score += TABLET_REDUCTION_IF_IPAD_MODE

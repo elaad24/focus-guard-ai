@@ -22,6 +22,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "notificationsEnabled": True,
     "debugMode": False,
     "saveRawVideo": False,
+    "yawnWindowSeconds": 90,
+    "yawnsInWindowThreshold": 3,
+    "eyeClosedAlertSeconds": 2.5,
+    "fatigueScoreWeight": 25,
+    "fatigueSoftWarningAfterSeconds": 15,
+    "earClosedThreshold": 0.2,
+    "marYawnThreshold": 0.55,
 }
 
 VALID_MODES = {"normal", "video_lesson", "ipad", "break"}

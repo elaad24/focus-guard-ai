@@ -14,7 +14,8 @@ _connections: set[WebSocket] = set()
 _lock = threading.Lock()
 _running = False
 _thread: threading.Thread | None = None
-BROADCAST_INTERVAL_SECONDS = 1.0
+BROADCAST_INTERVAL_SECONDS = 2.0
+_POLL_INTERVAL_SECONDS = 0.25
 
 
 async def connect(websocket: WebSocket) -> None:
@@ -44,21 +45,29 @@ def stop_broadcaster() -> None:
 
 
 def _broadcast_loop() -> None:
+    last_forced_broadcast = time.monotonic()
     while _running:
-        payload = json.dumps(world_state.snapshot())
-        dead: list[WebSocket] = []
-        with _lock:
-            connections = list(_connections)
-        for ws in connections:
-            try:
-                asyncio.run(_send(ws, payload))
-            except Exception:
-                dead.append(ws)
-        if dead:
+        now = time.monotonic()
+        should_send = world_state.should_broadcast() or (
+            now - last_forced_broadcast >= BROADCAST_INTERVAL_SECONDS
+        )
+        if should_send:
+            payload = json.dumps(world_state.snapshot())
+            dead: list[WebSocket] = []
             with _lock:
-                for ws in dead:
-                    _connections.discard(ws)
-        time.sleep(BROADCAST_INTERVAL_SECONDS)
+                connections = list(_connections)
+            for ws in connections:
+                try:
+                    asyncio.run(_send(ws, payload))
+                except Exception:
+                    dead.append(ws)
+            if dead:
+                with _lock:
+                    for ws in dead:
+                        _connections.discard(ws)
+            world_state.mark_broadcasted()
+            last_forced_broadcast = now
+        time.sleep(_POLL_INTERVAL_SECONDS)
 
 
 async def _send(websocket: WebSocket, payload: str) -> None:

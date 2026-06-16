@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { getHealth } from "../api/settings";
+import { HealthResponse } from "../types";
 
-const RESOURCE_POLL_INTERVAL_MS = 10_000;
+const RESOURCE_POLL_INTERVAL_MS = 20_000;
 
 type PerformanceMemory = {
   usedJSHeapSize: number;
@@ -15,6 +16,7 @@ export type ResourceUsage = {
   backendCpuPercent: number | null;
   backendMemoryMb: number | null;
   frontendMemoryMb: number | null;
+  health: HealthResponse | null;
 };
 
 const readFrontendMemoryMb = (): number | null => {
@@ -30,6 +32,7 @@ export const useResourceUsage = () => {
     backendCpuPercent: null,
     backendMemoryMb: null,
     frontendMemoryMb: readFrontendMemoryMb(),
+    health: null,
   });
 
   useEffect(() => {
@@ -40,11 +43,13 @@ export const useResourceUsage = () => {
           backendCpuPercent: health.backend_cpu_percent ?? null,
           backendMemoryMb: health.backend_memory_mb ?? null,
           frontendMemoryMb: readFrontendMemoryMb(),
+          health,
         });
       } catch {
         setResources((prev) => ({
           ...prev,
           frontendMemoryMb: readFrontendMemoryMb(),
+          health: null,
         }));
       }
     };

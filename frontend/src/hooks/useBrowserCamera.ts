@@ -10,7 +10,8 @@ export type BrowserCameraStatus =
   | "error";
 
 const FRAME_UPLOAD_INTERVAL_MS = 5000;
-const JPEG_QUALITY = 0.72;
+const JPEG_QUALITY = 0.65;
+const MAX_UPLOAD_WIDTH = 1280;
 
 type UseBrowserCameraOptions = {
   mode: FocusMode;
@@ -54,11 +55,16 @@ export const useBrowserCamera = ({ mode }: UseBrowserCameraOptions) => {
       return;
     }
 
-    const width = video.videoWidth;
-    const height = video.videoHeight;
-    if (width === 0 || height === 0) {
+    const sourceWidth = video.videoWidth;
+    const sourceHeight = video.videoHeight;
+    if (sourceWidth === 0 || sourceHeight === 0) {
       return;
     }
+
+    const scale =
+      sourceWidth > MAX_UPLOAD_WIDTH ? MAX_UPLOAD_WIDTH / sourceWidth : 1;
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
 
     canvas.width = width;
     canvas.height = height;

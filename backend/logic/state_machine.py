@@ -8,6 +8,7 @@ from alerts.notification_alert import NotificationAlert
 from alerts.sound_alert import SoundAlert
 from logic.config_store import config_store
 from logic.distraction_score import GAZE_IDLE_CONTRIBUTORS, calculate_distraction_score
+from logic.event_labels import build_warning_message
 from logic.focus_score import calculate_focus_score
 from logic.mode_rules import alerts_enabled, apply_mode_to_signals
 from logic.session_tracker import SessionTracker
@@ -25,7 +26,11 @@ MEANINGFUL_CONTRIBUTORS = frozenset({
     "looking_away_from_screen",
     "keyboard_mouse_idle",
     "body_hand_idle",
+    "frequent_yawns",
+    "eyes_closed_too_long",
 })
+
+FATIGUE_CONTRIBUTORS = frozenset({"frequent_yawns", "eyes_closed_too_long"})
 
 
 class StateMachine:
@@ -121,6 +126,7 @@ class StateMachine:
                 ws.input_activity_override_active = (
                     recent_activity and not self._is_instant_unfocused(ws)
                 )
+                ws.fatigue_active = ws.signals.frequent_yawns or ws.signals.eyes_closed_too_long
 
                 score_result = calculate_distraction_score(
                     ws.signals,
@@ -180,6 +186,34 @@ class StateMachine:
             )
         return any(c in MEANINGFUL_CONTRIBUTORS for c in contributors)
 
+    @staticmethod
+    def _event_contributors(ws: WorldState) -> list[str]:
+        if ws.distraction_contributors:
+            return list(ws.distraction_contributors)
+        if ws.last_distraction_contributors:
+            return list(ws.last_distraction_contributors)
+        return []
+
+    @staticmethod
+    def _is_fatigue_active(ws: WorldState) -> bool:
+        return any(c in FATIGUE_CONTRIBUTORS for c in ws.distraction_contributors)
+
+    @staticmethod
+    def _fatigue_notification_message(ws: WorldState) -> str:
+        if "frequent_yawns" in ws.distraction_contributors:
+            return (
+                "You seem tired — try opening your eyes wide for 20 seconds, "
+                "stand and stretch, or sip some water."
+            )
+        if "eyes_closed_too_long" in ws.distraction_contributors:
+            return (
+                "Your eyes have been closed a while — blink, look at something far away, "
+                "or take a short movement break to wake up."
+            )
+        return (
+            "You seem tired — try 20 seconds with eyes open, a stretch, or water to refocus."
+        )
+
     def _is_instant_unfocused(self, ws: WorldState) -> bool:
         signals = ws.signals
         if signals.phone_near_person or signals.phone_near_hand_or_face:
@@ -200,6 +234,11 @@ class StateMachine:
         soft_after = float(config.get("softWarningAfterSeconds", 45))
         medium_after = float(config.get("mediumWarningAfterSeconds", 60))
         final_after = float(config.get("finalAlertAfterSeconds", 90))
+        if self._is_fatigue_active(ws):
+            soft_after = min(
+                soft_after,
+                float(config.get("fatigueSoftWarningAfterSeconds", 15)),
+            )
 
         if ws.mode == "break":
             ws.state = FocusState.BREAK_MODE
@@ -286,14 +325,26 @@ class StateMachine:
                 ws.alert_active = True
                 ws.warning_stage = "final"
                 self._session_tracker.on_final_alert(ws)
-                ws.add_event("final_alert", "Final alert: time for a cheerful refocus check-in")
+                contributors = self._event_contributors(ws)
+                ws.add_event(
+                    "final_alert",
+                    build_warning_message(
+                        "final",
+                        "Final alert: time for a cheerful refocus check-in",
+                        contributors,
+                    ),
+                    contributors=contributors,
+                    warning_stage="final",
+                )
                 if alerts_enabled(ws.mode) and config.get("soundEnabled", True):
                     self._sound_alert.start_final_loop()
                 if alerts_enabled(ws.mode) and config.get("notificationsEnabled", True):
-                    self._notification_alert.send(
-                        "Focus Guard AI",
-                        "You've got this! Take a breath and jump back into focus.",
+                    body = (
+                        self._fatigue_notification_message(ws)
+                        if self._is_fatigue_active(ws)
+                        else "You've got this! Take a breath and jump back into focus."
                     )
+                    self._notification_alert.send("Focus Guard AI", body)
             return
 
         if ws.time_above_threshold_seconds >= medium_after:
@@ -303,25 +354,54 @@ class StateMachine:
                 self._sound_alert.play_medium()
                 self._medium_beep_sent = True
                 self._session_tracker.on_medium_warning(ws)
-                ws.add_event("medium_warning", "Medium reminder: gentle nudge to return to focus")
+                contributors = self._event_contributors(ws)
+                ws.add_event(
+                    "medium_warning",
+                    build_warning_message(
+                        "medium",
+                        "Medium reminder: gentle nudge to return to focus",
+                        contributors,
+                    ),
+                    contributors=contributors,
+                    warning_stage="medium",
+                )
+                if (
+                    alerts_enabled(ws.mode)
+                    and config.get("notificationsEnabled", True)
+                    and self._is_fatigue_active(ws)
+                ):
+                    self._notification_alert.send(
+                        "Focus Guard AI",
+                        self._fatigue_notification_message(ws),
+                    )
             return
 
         if ws.time_above_threshold_seconds >= soft_after:
             if ws.state != FocusState.DISTRACTION_WARNING_SOFT:
                 self._session_tracker.on_soft_warning(ws)
+                contributors = self._event_contributors(ws)
+                base_soft = (
+                    "Soft warning: you seem tired — take a short wake-up break"
+                    if self._is_fatigue_active(ws)
+                    else "Soft warning: distraction is building — a good moment to refocus"
+                )
                 ws.add_event(
                     "soft_warning",
-                    "Soft warning: distraction is building — a good moment to refocus",
+                    build_warning_message("soft", base_soft, contributors),
+                    contributors=contributors,
+                    warning_stage="soft",
                 )
                 if not self._soft_alert_sent and alerts_enabled(ws.mode):
                     self._soft_alert_sent = True
                     if config.get("soundEnabled", True):
                         self._sound_alert.play_soft()
                     if config.get("notificationsEnabled", True):
-                        self._notification_alert.send(
-                            "Focus Guard AI",
-                            "Distraction is building — a good moment to refocus.",
+                        body = (
+                            self._fatigue_notification_message(ws)
+                            if self._is_fatigue_active(ws)
+                            else "Distraction is building — a good moment to refocus."
                         )
+                        self._notification_alert.send("Focus Guard AI", body)
             ws.state = FocusState.DISTRACTION_WARNING_SOFT
             ws.warning_stage = "soft"
             return

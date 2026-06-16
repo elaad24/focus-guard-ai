@@ -409,6 +409,60 @@ body {
   font-size: 0.75rem;
 }
 
+.event-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.event-stage {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--muted);
+}
+
+.event-stage-soft {
+  background: rgba(250, 204, 21, 0.15);
+  color: #facc15;
+}
+
+.event-stage-medium {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+}
+
+.event-stage-final {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+.event-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.event-reason-chip {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.warning-banner-fatigue {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: linear-gradient(135deg, rgba(76, 29, 149, 0.35), rgba(30, 27, 75, 0.5));
+}
+
 .focus-gauge {
   display: flex;
   align-items: center;
