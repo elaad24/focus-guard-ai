@@ -354,7 +354,6 @@ class StateMachine:
             FocusState.DISMISSED_COOLDOWN,
             FocusState.DISTRACTION_WARNING_SOFT,
             FocusState.DISTRACTION_WARNING_MEDIUM,
-            FocusState.ALERT_ACTIVE,
         }:
             ws.state = FocusState.DISTRACTED
             ws.warning_stage = "building"

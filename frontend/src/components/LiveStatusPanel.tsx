@@ -1,4 +1,6 @@
-import { StatusSnapshot } from "../types";
+import { useEffect, useState } from "react";
+import { getSettings } from "../api/settings";
+import { AppSettings, StatusSnapshot } from "../types";
 
 type LiveStatusPanelProps = {
   status: StatusSnapshot;
@@ -14,8 +16,37 @@ const stateClass = (state: string) => {
   return "distracted";
 };
 
+const defaultThresholds: Pick<
+  AppSettings,
+  "softWarningAfterSeconds" | "mediumWarningAfterSeconds" | "finalAlertAfterSeconds"
+> = {
+  softWarningAfterSeconds: 45,
+  mediumWarningAfterSeconds: 60,
+  finalAlertAfterSeconds: 90,
+};
+
 export const LiveStatusPanel = ({ status }: LiveStatusPanelProps) => {
-  const stageLabels = ["Soft (45s)", "Medium (60s)", "Final (90s)"];
+  const [thresholds, setThresholds] = useState(defaultThresholds);
+
+  useEffect(() => {
+    getSettings()
+      .then((settings) => {
+        setThresholds({
+          softWarningAfterSeconds: settings.softWarningAfterSeconds,
+          mediumWarningAfterSeconds: settings.mediumWarningAfterSeconds,
+          finalAlertAfterSeconds: settings.finalAlertAfterSeconds,
+        });
+      })
+      .catch(() => {
+        setThresholds(defaultThresholds);
+      });
+  }, []);
+
+  const stageLabels = [
+    `Soft (${thresholds.softWarningAfterSeconds}s)`,
+    `Medium (${thresholds.mediumWarningAfterSeconds}s)`,
+    `Final (${thresholds.finalAlertAfterSeconds}s)`,
+  ];
   const activeStageIndex =
     status.warning_stage === "soft"
       ? 0

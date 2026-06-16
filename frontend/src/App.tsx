@@ -10,6 +10,7 @@ import { HealthPanel } from "./components/HealthPanel";
 import { LiveStatusPanel } from "./components/LiveStatusPanel";
 import { ModesPanel } from "./components/ModesPanel";
 import { SessionSummaryPanel } from "./components/SessionSummaryPanel";
+import { SessionHistoryPanel } from "./components/SessionHistoryPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WarningBanner } from "./components/WarningBanner";
 import { WorkstationSetupPanel } from "./components/WorkstationSetupPanel";
@@ -111,6 +112,7 @@ const App = () => {
         <ModesPanel currentMode={status.mode} status={status} />
         <SettingsPanel onRecalibrate={handleRecalibrate} gazeCalibrated={status.gaze_calibrated} />
         <SessionSummaryPanel summary={status.session_summary} />
+        <SessionHistoryPanel />
         <EventLogPanel events={status.events} />
       </main>
 

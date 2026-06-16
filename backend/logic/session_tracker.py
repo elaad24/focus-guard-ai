@@ -7,7 +7,7 @@ from logic.world_state import FocusState, WorldState
 
 
 class SessionTracker:
-    TICK_SECONDS = 0.25
+    TICK_SECONDS = 0.5
 
     def tick(self, ws: WorldState, config: dict[str, Any]) -> None:
         ws.session.total_monitored_seconds += self.TICK_SECONDS

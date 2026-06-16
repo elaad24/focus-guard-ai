@@ -68,7 +68,6 @@ class SettingsUpdate(BaseModel):
     inputActivityFocusWindowSeconds: int | None = Field(default=None, ge=1, le=120)
     soundEnabled: bool | None = None
     notificationsEnabled: bool | None = None
-    debugMode: bool | None = None
 
 
 class SnoozeRequest(BaseModel):
@@ -148,7 +147,10 @@ def get_settings() -> dict[str, Any]:
 def update_settings(payload: SettingsUpdate) -> dict[str, Any]:
     partial = payload.model_dump(exclude_none=True)
     if "mode" in partial:
-        validate_mode(partial["mode"])
+        try:
+            validate_mode(partial["mode"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     effective = {**config_store.get(), **partial}
     _validate_warning_threshold_order(effective)
@@ -171,7 +173,10 @@ def get_state() -> dict[str, Any]:
 
 @router.post("/mode")
 def set_mode(payload: ModeRequest) -> dict[str, Any]:
-    mode = validate_mode(payload.mode)
+    try:
+        mode = validate_mode(payload.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     config_store.update({"mode": mode})
     if _state_machine is not None:
         _state_machine.set_mode(mode)
@@ -213,15 +218,21 @@ def session_summary() -> dict[str, Any]:
 
 @router.post("/session/reset")
 def reset_session() -> dict[str, Any]:
+    from copy import deepcopy
+
     from logic.session_tracker import SessionTracker
 
     tracker = SessionTracker()
+    session_to_save = None
 
     def mutate(ws) -> None:
-        history_store.save(ws.session, "reset")
+        nonlocal session_to_save
+        session_to_save = deepcopy(ws.session)
         tracker.reset(ws)
 
     world_state.mutate(mutate)
+    if session_to_save is not None:
+        history_store.save(session_to_save, "reset")
     return world_state.snapshot()["session_summary"]
 
 

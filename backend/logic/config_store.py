@@ -4,7 +4,7 @@ import json
 import threading
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
 
@@ -20,7 +20,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "inputActivityFocusWindowSeconds": 10,
     "soundEnabled": True,
     "notificationsEnabled": True,
-    "debugMode": False,
     "yawnWindowSeconds": 90,
     "yawnsInWindowThreshold": 3,
     "eyeClosedAlertSeconds": 2.5,
@@ -38,7 +37,6 @@ class ConfigStore:
         self._path = path
         self._lock = threading.Lock()
         self._config = self._load()
-        self._subscribers: list[Callable[[dict[str, Any]], None]] = []
 
     def _load(self) -> dict[str, Any]:
         if not self._path.exists():
@@ -59,13 +57,7 @@ class ConfigStore:
         with self._lock:
             self._config.update(partial)
             self._path.write_text(json.dumps(self._config, indent=2))
-            snapshot = deepcopy(self._config)
-        for subscriber in self._subscribers:
-            subscriber(snapshot)
-        return snapshot
-
-    def subscribe(self, callback: Callable[[dict[str, Any]], None]) -> None:
-        self._subscribers.append(callback)
+            return deepcopy(self._config)
 
 
 config_store = ConfigStore()

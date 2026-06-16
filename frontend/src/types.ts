@@ -107,7 +107,6 @@ export type AppSettings = {
   inputActivityFocusWindowSeconds: number;
   soundEnabled: boolean;
   notificationsEnabled: boolean;
-  debugMode: boolean;
 };
 
 export type HealthResponse = {

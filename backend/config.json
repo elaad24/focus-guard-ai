@@ -10,7 +10,6 @@
   "inputActivityFocusWindowSeconds": 10,
   "soundEnabled": true,
   "notificationsEnabled": true,
-  "debugMode": false,
   "yawnWindowSeconds": 90,
   "yawnsInWindowThreshold": 3,
   "eyeClosedAlertSeconds": 2.5,

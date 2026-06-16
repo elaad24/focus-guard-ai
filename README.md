@@ -83,31 +83,31 @@ bash scripts/dev.sh
 ```
 
 This starts:
-- Backend at **http://127.0.0.1:8000**
-- Frontend at **http://localhost:5173**
+- Backend at **http://127.0.0.1:8787**
+- Frontend at **http://127.0.0.1:5700**
 
 Press `Ctrl+C` once to stop both.
 
 ### Run separately
 
-#### Backend (port 8000)
+#### Backend (port 8787)
 
 ```bash
 cd focus-guard-ai/backend
 source .venv/bin/activate
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
+uvicorn main:app --reload --host 127.0.0.1 --port 8787
 ```
 
-#### Frontend (port 5173)
+#### Frontend (port 5700)
 
 ```bash
 cd focus-guard-ai/frontend
 npm run dev
 ```
 
-Open the dashboard: **http://localhost:5173**
+Open the dashboard: **http://127.0.0.1:5700**
 
-API docs: **http://127.0.0.1:8000/docs**
+API docs: **http://127.0.0.1:8787/docs**
 
 ## macOS Permissions
 
@@ -131,7 +131,6 @@ Settings live in `backend/config.json` and can be changed from the dashboard Set
 | `inputActivityFocusWindowSeconds` | 10 | Recent keyboard/mouse activity window that suppresses idle/gaze signals |
 | `soundEnabled` | true | Enable alert sounds |
 | `notificationsEnabled` | true | macOS desktop notifications on final alert |
-| `debugMode` | false | Verbose backend behavior |
 | `yawnWindowSeconds` | 90 | Rolling window for yawn counting |
 | `yawnsInWindowThreshold` | 3 | Yawns in window that trigger fatigue signal |
 | `eyeClosedAlertSeconds` | 2.5 | Seconds eyes closed before fatigue signal |
@@ -199,7 +198,7 @@ During cooldown or snooze, signals are still tracked but new alerts are suppress
 | POST | `/session/reset` | Reset session counters (persists summary to history) |
 | GET | `/history` | Past session summaries from SQLite (`?limit=20`) |
 | POST | `/calibration/screen-zone` | Save screen zone rectangle |
-| WS | `/ws/status` | Live status stream (~5 Hz) |
+| WS | `/ws/status` | Live status stream (on change or every ~2s) |
 
 ## Project structure
 
@@ -215,7 +214,7 @@ focus-guard-ai/
     storage/       # SQLite session history
     alerts/        # sound + notifications
     api/           # REST + WebSocket
-    assets/        # alert.wav (auto-generated on first run)
+    assets/        # soft_nudge.wav, medium_chime.wav, final_cheerful.wav (auto-generated)
   frontend/
     src/
       components/  # 8 dashboard panels

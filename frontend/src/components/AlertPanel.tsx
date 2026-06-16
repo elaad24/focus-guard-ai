@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { dismissAlert } from "../api/settings";
 import { StatusSnapshot } from "../types";
 
@@ -8,40 +8,7 @@ type AlertPanelProps = {
 
 export const AlertPanel = ({ status }: AlertPanelProps) => {
   const [dismissing, setDismissing] = useState(false);
-  const notificationSentRef = useRef(false);
   const alertActive = status.alert_active || status.state === "ALERT_ACTIVE";
-
-  useEffect(() => {
-    if (!alertActive) {
-      notificationSentRef.current = false;
-      return;
-    }
-
-    if (notificationSentRef.current || !("Notification" in window)) {
-      return;
-    }
-
-    const showNotification = () => {
-      notificationSentRef.current = true;
-      new Notification("Focus Guard AI", {
-        body: "You've got this! Take a breath and jump back into focus.",
-        tag: "focus-guard-final-alert",
-      });
-    };
-
-    if (Notification.permission === "granted") {
-      showNotification();
-      return;
-    }
-
-    if (Notification.permission !== "denied") {
-      void Notification.requestPermission().then((permission) => {
-        if (permission === "granted") {
-          showNotification();
-        }
-      });
-    }
-  }, [alertActive]);
 
   const handleDismiss = async () => {
     setDismissing(true);

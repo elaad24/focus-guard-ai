@@ -185,14 +185,6 @@ export const SettingsPanel = ({ onRecalibrate, gazeCalibrated = false }: Setting
             onChange={(event) => handleChange("notificationsEnabled", event.target.checked)}
           />
         </div>
-        <div className="toggle-row">
-          <span>Debug mode</span>
-          <input
-            type="checkbox"
-            checked={settings.debugMode}
-            onChange={(event) => handleChange("debugMode", event.target.checked)}
-          />
-        </div>
       </div>
       <button
         type="button"
